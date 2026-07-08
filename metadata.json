@@ -1,0 +1,6 @@
+{
+  "name": "Geniplus Academy ERP",
+  "description": "A comprehensive multi-tenant SaaS ERP for Abacus Academies and Training Centers, featuring a Google Sheets database blueprint, role-based dashboards, and a fully functional AI Abacus Practice & Worksheet Engine powered by Gemini.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

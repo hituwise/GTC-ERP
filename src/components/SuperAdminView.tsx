@@ -1,0 +1,615 @@
+import React, { useState, useEffect } from "react";
+import { Center } from "../types";
+import { Building2, PlusCircle, ShieldCheck, Mail, Calendar, Sparkles, TrendingUp, DollarSign, Megaphone, CheckCircle, RefreshCw, Key, ShieldAlert } from "lucide-react";
+
+interface SuperAdminViewProps {
+  centers: Center[];
+  onAddCenter: (center: Partial<Center>) => void;
+}
+
+export default function SuperAdminView({ centers: initialCenters, onAddCenter }: SuperAdminViewProps) {
+  const [centers, setCenters] = useState<Center[]>(initialCenters);
+  const [showAddCenter, setShowAddCenter] = useState(false);
+
+  // Sync state with master centers prop when it changes
+  useEffect(() => {
+    setCenters(initialCenters);
+  }, [initialCenters]);
+
+  // Form Fields for Register Center
+  const [cName, setCName] = useState("");
+  const [cOwner, setCOwner] = useState("");
+  const [cEmail, setCEmail] = useState("");
+  const [cMobile, setCMobile] = useState("");
+  const [cCity, setCCity] = useState("");
+  const [cState, setCState] = useState("");
+  const [cPlan, setCPlan] = useState("Standard");
+
+  // Form Fields for Subscription / Trial manager
+  const [subCenterId, setSubCenterId] = useState("");
+  const [subPlan, setSubPlan] = useState("Standard");
+  const [subExpiry, setSubExpiry] = useState(() => {
+    const d = new Date();
+    d.setFullYear(d.getFullYear() + 1);
+    return d.toISOString().split("T")[0];
+  });
+  const [subIsTrial, setSubIsTrial] = useState(false);
+  const [subTrialDays, setSubTrialDays] = useState(30);
+  const [subUpdating, setSubUpdating] = useState(false);
+
+  // Admin authentication (credential login) states
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
+    return localStorage.getItem("superadmin_is_logged_in") === "true";
+  });
+  const [adminEmail, setAdminEmail] = useState("");
+  const [adminPassword, setAdminPassword] = useState("");
+  const [adminError, setAdminError] = useState<string | null>(null);
+  const [adminLoading, setAdminLoading] = useState(false);
+
+  // Announcements
+  const [annTitle, setAnnTitle] = useState("");
+  const [annText, setAnnText] = useState("");
+  const [announcements, setAnnouncements] = useState<any[]>([
+    { title: "National Abacus Competition 2026", text: "Registrations are now open for Levels 1 to 8. All center heads must share details with parent batches.", date: "2026-07-01" },
+    { title: "V4 Curriculum Guidelines Published", text: "The educational rules for Level 1 Direct Bead subtraction are now active in the Practice Generator module.", date: "2026-06-25" }
+  ]);
+  const [showAnnSuccess, setShowAnnSuccess] = useState(false);
+
+  const handleAdminLoginSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setAdminError(null);
+    setAdminLoading(true);
+
+    setTimeout(() => {
+      const email = adminEmail.trim().toLowerCase();
+      // Superadmin credentials validation: support both generic and realistic accounts
+      if (email === "admin@geniplus.com" && (adminPassword === "password123" || adminPassword === "admin123")) {
+        setIsLoggedIn(true);
+        localStorage.setItem("superadmin_is_logged_in", "true");
+      } else {
+        setAdminError("Incorrect credentials. Use admin@geniplus.com and password123 to log in.");
+      }
+      setAdminLoading(false);
+    }, 400);
+  };
+
+  const handleAdminLogout = () => {
+    setIsLoggedIn(false);
+    localStorage.removeItem("superadmin_is_logged_in");
+    setAdminEmail("");
+    setAdminPassword("");
+  };
+
+  const handleUpdateSubscriptionSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!subCenterId) {
+      alert("Please select a franchise center to modify");
+      return;
+    }
+    setSubUpdating(true);
+    try {
+      const res = await fetch("/api/erp/update-subscription", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          centerId: subCenterId,
+          plan: subPlan,
+          subscriptionExpiry: subExpiry || undefined,
+          isTrial: subIsTrial,
+          trialDays: subIsTrial ? Number(subTrialDays) : undefined
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(`Successfully updated subscription/evaluation settings for ${data.center.name}!`);
+        // Sync local view state
+        setCenters(prev => prev.map(c => c.id === subCenterId ? data.center : c));
+        setSubCenterId("");
+      } else {
+        alert("Failed to update subscription: " + data.error);
+      }
+    } catch (err: any) {
+      alert("Error: " + err.message);
+    } finally {
+      setSubUpdating(false);
+    }
+  };
+
+  const handleCreateCenter = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!cName) return;
+
+    const payload = {
+      name: cName,
+      ownerName: cOwner,
+      email: cEmail,
+      mobile: cMobile,
+      city: cCity,
+      state: cState,
+      plan: cPlan,
+      subscriptionExpiry: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
+    };
+
+    onAddCenter(payload);
+
+    const newC: Center = {
+      id: `C00${centers.length + 1}`,
+      name: cName,
+      ownerName: cOwner,
+      mobile: cMobile,
+      email: cEmail,
+      city: cCity,
+      state: cState,
+      country: "India",
+      plan: cPlan,
+      subscriptionStart: new Date().toISOString().split("T")[0],
+      subscriptionExpiry: payload.subscriptionExpiry,
+      status: "Active"
+    };
+
+    setCenters([...centers, newC]);
+    setCName(""); setCOwner(""); setCEmail(""); setCMobile(""); setCCity(""); setCState("");
+    setShowAddCenter(false);
+  };
+
+  const handleCreateAnnouncement = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!annTitle) return;
+    setAnnouncements([{ title: annTitle, text: annText, date: new Date().toISOString().split("T")[0] }, ...announcements]);
+    setAnnTitle(""); setAnnText("");
+    setShowAnnSuccess(true);
+    setTimeout(() => setShowAnnSuccess(false), 3000);
+  };
+
+  const toggleCenterStatus = (centerId: string) => {
+    setCenters(prev =>
+      prev.map(c => c.id === centerId ? { ...c, status: c.status === "Active" ? "Inactive" : "Active" } : c)
+    );
+  };
+
+  // SaaS Revenue Calculations
+  // Basic: ₹20,000/yr, Standard: ₹45,000/yr, Premium: ₹75,000/yr
+  const getPlanPrice = (plan: string) => {
+    if (plan === "Premium") return 75000;
+    if (plan === "Standard") return 45000;
+    return 20000;
+  };
+
+  const totalSaaSArr = centers.filter(c => c.status === "Active").reduce((acc, curr) => acc + getPlanPrice(curr.plan), 0);
+
+  if (!isLoggedIn) {
+    return (
+      <div className="max-w-md mx-auto my-12 bg-white rounded-3xl border-2 border-slate-100 p-8 shadow-xl text-center space-y-6 animate-fade-in" id="superadmin-login-card">
+        <div className="flex justify-center">
+          <div className="w-16 h-16 bg-rose-50 border-2 border-rose-100 rounded-2xl flex items-center justify-center text-rose-600 shadow-sm animate-pulse">
+            <ShieldAlert className="w-8 h-8" />
+          </div>
+        </div>
+
+        <div>
+          <h3 className="text-xl font-black text-slate-950 font-display">Geniplus Super Admin</h3>
+          <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+            Authorized access only. Log in to manage franchised center contracts, allocate evaluation trials, and monitor ARR metrics.
+          </p>
+        </div>
+
+        {adminError && (
+          <div className="bg-rose-50 border border-rose-100 rounded-xl p-3 text-[11px] font-bold text-rose-600">
+            {adminError}
+          </div>
+        )}
+
+        <form onSubmit={handleAdminLoginSubmit} className="space-y-4 text-left">
+          <div>
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Email ID</label>
+            <input
+              type="email"
+              required
+              placeholder="admin@geniplus.com"
+              value={adminEmail}
+              onChange={(e) => setAdminEmail(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-semibold text-indigo-950 focus:bg-white outline-none focus:ring-2 focus:ring-indigo-600"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Password</label>
+            <input
+              type="password"
+              required
+              placeholder="••••••••"
+              value={adminPassword}
+              onChange={(e) => setAdminPassword(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-semibold text-indigo-950 focus:bg-white outline-none focus:ring-2 focus:ring-indigo-600"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={adminLoading}
+            className="w-full bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs py-3 rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center gap-1.5"
+          >
+            {adminLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin text-white" /> : <Key className="w-3.5 h-3.5 text-white" />}
+            <span>Unlock Superadmin Panel</span>
+          </button>
+        </form>
+
+        <div className="border-t border-slate-100 pt-5 text-left text-xs bg-slate-50 rounded-xl p-3 border border-slate-100">
+          <div className="font-bold text-slate-700 mb-1">Testing Credentials:</div>
+          <div className="text-[11px] text-slate-500 font-mono flex flex-col gap-1">
+            <span>Email: <strong className="text-slate-700">admin@geniplus.com</strong></span>
+            <span>Password: <strong className="text-slate-700">password123</strong></span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-8" id="super-admin-view">
+
+      {/* Super Admin Welcome Banner */}
+      <div className="bg-slate-900 text-white rounded-3xl p-6 shadow-xl flex flex-col md:flex-row justify-between items-center gap-4">
+        <div>
+          <span className="bg-rose-950 text-rose-300 text-[10px] font-extrabold px-3 py-1 rounded-full uppercase tracking-widest border border-rose-900/40">
+            System Overseer Account
+          </span>
+          <h2 className="text-xl md:text-2xl font-black font-display mt-2">
+            Superadmin Console ⚡
+          </h2>
+          <p className="text-xs text-slate-300 mt-1">
+            SaaS Platform Analytics • Global Multi-tenant Subscriptions • Broadcast Service
+          </p>
+        </div>
+        <button
+          onClick={handleAdminLogout}
+          className="bg-slate-800 hover:bg-rose-700 hover:text-white px-4 py-2.5 rounded-xl text-xs font-bold text-slate-200 flex items-center gap-1.5 transition-all shadow-md active:scale-95 shrink-0"
+        >
+          <RefreshCw className="w-3.5 h-3.5" />
+          <span>Lock Admin Dashboard</span>
+        </button>
+      </div>
+      
+      {/* Super Admin Metrics Row */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="bg-white border-2 border-slate-100 rounded-3xl p-5 shadow-sm">
+          <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Registered Centers</div>
+          <div className="text-2xl md:text-3xl font-black text-indigo-900 mt-1 font-display leading-tight">{centers.length} Centers</div>
+          <div className="text-[10px] text-slate-400 mt-1.5">Active multi-tenant isolation</div>
+        </div>
+
+        <div className="bg-white border-2 border-slate-100 rounded-3xl p-5 shadow-sm">
+          <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Active SaaS Subscriptions</div>
+          <div className="text-2xl md:text-3xl font-black text-emerald-600 mt-1 font-display leading-tight">{centers.filter(c => c.status === "Active").length} Active</div>
+          <div className="text-[10px] text-emerald-500 mt-1.5 font-bold">100% billing health</div>
+        </div>
+
+        <div className="bg-amber-400 border-2 border-amber-300 rounded-3xl p-5 shadow-lg shadow-amber-200/40 text-indigo-950">
+          <div className="text-[10px] font-black text-indigo-950/80 uppercase tracking-wider">Total SaaS ARR Revenue</div>
+          <div className="text-2xl md:text-3xl font-black mt-1 font-display leading-tight">₹{totalSaaSArr.toLocaleString()}</div>
+          <div className="text-[10px] text-indigo-950/80 mt-1.5 flex items-center gap-1 font-bold">
+            <TrendingUp className="w-3.5 h-3.5" />
+            <span>Based on Tier allocations</span>
+          </div>
+        </div>
+
+        <div className="bg-white border-2 border-slate-100 rounded-3xl p-5 shadow-sm">
+          <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Global System Health</div>
+          <div className="text-2xl md:text-3xl font-black text-indigo-900 mt-1 font-display leading-tight">99.98%</div>
+          <div className="text-[10px] text-slate-400 mt-1.5">No active outages detected</div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        
+        {/* Centers registry list (7 cols) */}
+        <div className="lg:col-span-7 bg-white rounded-3xl border-2 border-slate-100 p-6 shadow-sm">
+          <div className="flex justify-between items-center mb-6">
+            <div>
+              <h3 className="text-base font-black text-indigo-900 font-display flex items-center gap-2">
+                <Building2 className="w-5 h-5 text-indigo-600" />
+                Geniplus Licensed SaaS Centers
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">Register new franchise centers and manage subscription plans.</p>
+            </div>
+            <button
+              onClick={() => setShowAddCenter(!showAddCenter)}
+              className="flex items-center gap-1 bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 px-3 py-1.5 rounded-xl text-indigo-700 text-xs font-semibold transition-all active:scale-95"
+              id="add-center-btn"
+            >
+              <PlusCircle className="w-3.5 h-3.5" />
+              <span>Register Center</span>
+            </button>
+          </div>
+
+          {showAddCenter && (
+            <form onSubmit={handleCreateCenter} className="bg-gray-50 border border-gray-150 rounded-xl p-4 space-y-4 mb-6">
+              <div className="text-xs font-bold text-slate-700 uppercase tracking-wider">Register New Academy Tenant</div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-600 mb-1">Center Name</label>
+                  <input type="text" required value={cName} onChange={(e) => setCName(e.target.value)} className="w-full bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-medium" />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-600 mb-1">Owner Name</label>
+                  <input type="text" required value={cOwner} onChange={(e) => setCOwner(e.target.value)} className="w-full bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-medium" />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-600 mb-1">Owner Email</label>
+                  <input type="email" required value={cEmail} onChange={(e) => setCEmail(e.target.value)} className="w-full bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-medium" />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-600 mb-1">Owner Mobile</label>
+                  <input type="text" required value={cMobile} onChange={(e) => setCMobile(e.target.value)} placeholder="+91" className="w-full bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-medium" />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-600 mb-1">Subscription Plan</label>
+                  <select value={cPlan} onChange={(e) => setCPlan(e.target.value)} className="w-full bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-xs font-medium">
+                    <option value="Basic">Basic (₹20,000/yr)</option>
+                    <option value="Standard">Standard (₹45,000/yr)</option>
+                    <option value="Premium">Premium (₹75,000/yr)</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-600 mb-1">City</label>
+                  <input type="text" value={cCity} onChange={(e) => setCCity(e.target.value)} className="w-full bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-medium" />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-600 mb-1">State</label>
+                  <input type="text" value={cState} onChange={(e) => setCState(e.target.value)} className="w-full bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-medium" />
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button type="button" onClick={() => setShowAddCenter(false)} className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700">Cancel</button>
+                <button type="submit" className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs">Register Tenant</button>
+              </div>
+            </form>
+          )}
+
+          <div className="space-y-3">
+            {centers.map(center => (
+              <div key={center.id} className="border border-gray-100 rounded-xl p-4 bg-gray-50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-mono bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-bold">{center.id}</span>
+                    <span className="font-bold text-gray-900 text-sm font-display">{center.name}</span>
+                    <span className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-lg border ${
+                      center.plan === "Premium" ? "bg-indigo-50 text-indigo-700 border-indigo-200" :
+                      center.plan === "Standard" ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-slate-100 text-slate-700 border-slate-200"
+                    }`}>
+                      {center.plan}
+                    </span>
+                    {center.isTrial && (
+                      <span className="text-[9px] bg-emerald-100 text-emerald-800 border border-emerald-200 font-extrabold uppercase px-2 py-0.5 rounded-lg flex items-center gap-1 animate-pulse">
+                        <Sparkles className="w-2.5 h-2.5 text-emerald-600" />
+                        <span>Evaluating Free Trial ({center.trialDays} Days)</span>
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="text-xs text-gray-500 mt-2 space-y-1">
+                    <div className="flex items-center gap-1.5">
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                      <span>Owner: <strong className="text-gray-700 font-semibold">{center.ownerName}</strong> ({center.mobile})</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <span className="font-mono text-indigo-600">{center.email}</span>
+                    </div>
+                    {center.isTrial && center.trialExpiryDate ? (
+                      <div className="flex items-center gap-1.5 bg-emerald-50 text-emerald-800 font-bold px-2 py-1 rounded-md border border-emerald-100 w-fit">
+                        <Calendar className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        <span>Trial Evaluation Ends: <strong className="font-mono text-xs">{center.trialExpiryDate}</strong></span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5">
+                        <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span>License Expires: <strong className="text-gray-600 font-mono">{center.subscriptionExpiry}</strong></span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => toggleCenterStatus(center.id)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all active:scale-95 ${
+                    center.status === "Active"
+                      ? "bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200"
+                      : "bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200"
+                  }`}
+                  id={`center-toggle-${center.id}`}
+                >
+                  {center.status}
+                </button>
+              </div>
+            ))}
+          </div>
+
+          {/* Franchise Subscription & Free Trial Administrator Desk */}
+          <form onSubmit={handleUpdateSubscriptionSubmit} className="mt-8 bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4">
+            <div className="border-b border-slate-200 pb-2">
+              <h4 className="text-xs font-black text-indigo-950 uppercase tracking-wider flex items-center gap-2 font-display">
+                <Sparkles className="w-4.5 h-4.5 text-indigo-600" />
+                Subscription & Evaluation Trials Desk
+              </h4>
+              <p className="text-[10px] text-slate-500 mt-0.5">Manage subscription terms or allocate timed evaluation free trials to centers.</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+              <div>
+                <label className="block font-bold text-slate-600 mb-1">Select Center</label>
+                <select
+                  required
+                  value={subCenterId}
+                  onChange={(e) => {
+                    const cid = e.target.value;
+                    setSubCenterId(cid);
+                    const found = centers.find(c => c.id === cid);
+                    if (found) {
+                      setSubPlan(found.plan);
+                      setSubExpiry(found.subscriptionExpiry);
+                      setSubIsTrial(!!found.isTrial);
+                      setSubTrialDays(found.trialDays || 30);
+                    }
+                  }}
+                  className="w-full bg-white border border-slate-200 rounded-xl p-2.5 font-bold text-indigo-950 outline-none focus:ring-1 focus:ring-indigo-500"
+                >
+                  <option value="">-- Choose Center Head --</option>
+                  {centers.map(c => (
+                    <option key={c.id} value={c.id}>{c.name} ({c.plan} Plan)</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-600 mb-1">Subscription Plan Level</label>
+                <select
+                  value={subPlan}
+                  onChange={(e) => setSubPlan(e.target.value)}
+                  className="w-full bg-white border border-slate-200 rounded-xl p-2.5 font-bold text-indigo-950 outline-none focus:ring-1 focus:ring-indigo-500"
+                >
+                  <option value="Basic">Basic (₹20,000/yr)</option>
+                  <option value="Standard">Standard (₹45,000/yr)</option>
+                  <option value="Premium">Premium (₹75,000/yr)</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="bg-white border border-slate-150 rounded-xl p-3.5 space-y-3.5">
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="is-evaluation-trial"
+                  checked={subIsTrial}
+                  onChange={(e) => setSubIsTrial(e.target.checked)}
+                  className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                />
+                <label htmlFor="is-evaluation-trial" className="text-xs font-bold text-slate-700 cursor-pointer">
+                  Activate Evaluation Free Trial for this center
+                </label>
+              </div>
+
+              {subIsTrial ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs animate-fade-in">
+                  <div>
+                    <label className="block font-bold text-emerald-800 mb-1">Trial Evaluation Period (Days)</label>
+                    <select
+                      value={subTrialDays}
+                      onChange={(e) => setSubTrialDays(Number(e.target.value))}
+                      className="w-full bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-xl p-2.5 font-bold outline-none"
+                    >
+                      <option value={7}>7 Days Fast Evaluation</option>
+                      <option value={14}>14 Days Regular Trial</option>
+                      <option value={30}>30 Days Comprehensive Trial</option>
+                      <option value={60}>60 Days Extensive Evaluation</option>
+                    </select>
+                  </div>
+                  <div className="flex items-center text-[11px] text-emerald-700 leading-relaxed font-semibold">
+                    * The center will automatically enter "Active Trial" status. On expiration, the local admin will be prompted to select one of the commercial plans.
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                  <div>
+                    <label className="block font-bold text-slate-600 mb-1">Contract License Expiry Date</label>
+                    <input
+                      type="date"
+                      value={subExpiry}
+                      onChange={(e) => setSubExpiry(e.target.value)}
+                      className="w-full bg-white border border-slate-200 rounded-xl p-2.5 font-bold text-indigo-950 outline-none"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button
+                type="submit"
+                disabled={subUpdating}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs px-6 py-3 rounded-xl flex items-center gap-1.5 transition-all shadow-md active:scale-95"
+              >
+                {subUpdating ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                <span>Save Subscription & Evaluation Terms</span>
+              </button>
+            </div>
+          </form>
+        </div>
+
+        {/* System Announcements (5 cols) */}
+        <div className="lg:col-span-5 bg-white rounded-3xl border-2 border-slate-100 p-6 shadow-sm flex flex-col justify-between h-full">
+          <div>
+            <h3 className="text-base font-black text-indigo-900 font-display flex items-center gap-2 mb-1">
+              <Megaphone className="w-5 h-5 text-indigo-600" />
+              Super Admin Announcements
+            </h3>
+            <p className="text-xs text-slate-500 mb-4">Send system announcements, curriculum adjustments, or billing notices across all tenant centers.</p>
+
+            <form onSubmit={handleCreateAnnouncement} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Announcement Title</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Server Maintenance or Syllabus Update"
+                  value={annTitle}
+                  onChange={(e) => setAnnTitle(e.target.value)}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-medium focus:ring-1 focus:ring-indigo-500"
+                  id="ann-title-input"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Content Body</label>
+                <textarea
+                  required
+                  value={annText}
+                  onChange={(e) => setAnnText(e.target.value)}
+                  placeholder="Describe the instructions in detail..."
+                  className="w-full bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-medium h-24 focus:ring-1 focus:ring-indigo-500"
+                  id="ann-text-textarea"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all active:scale-[0.98]"
+                id="publish-ann-btn"
+              >
+                Broadcast Announcement
+              </button>
+            </form>
+
+            {showAnnSuccess && (
+              <div className="bg-emerald-50 border border-emerald-100 text-emerald-800 text-xs rounded-lg p-2.5 mt-3 flex items-center gap-1.5">
+                <CheckCircle className="w-4 h-4 shrink-0 text-emerald-600" />
+                <span>Broadcast complete! Senders will receive notification in App.</span>
+              </div>
+            )}
+          </div>
+
+          <div className="mt-6 pt-4 border-t border-gray-100">
+            <div className="text-xs font-bold text-gray-900 font-display mb-3">Live Broadcast Log</div>
+            <div className="space-y-3 max-h-[160px] overflow-y-auto">
+              {announcements.map((ann, idx) => (
+                <div key={idx} className="bg-slate-50 border border-slate-100 rounded-lg p-2.5 text-xs text-slate-700">
+                  <div className="font-bold text-slate-900 flex justify-between">
+                    <span>{ann.title}</span>
+                    <span className="font-mono text-[9px] text-slate-400">{ann.date}</span>
+                  </div>
+                  <p className="mt-1 text-slate-600 leading-relaxed text-[11px]">{ann.text}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  );
+}
