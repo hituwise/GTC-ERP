@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from "react";
-import { Student, StudentPracticeAssignment, StudentPracticeSubmission, AcademyLeaderboardEntry } from "../types";
+import { Student, StudentPracticeAssignment, StudentPracticeSubmission, AcademyLeaderboardEntry, Center } from "../types";
 import { BookOpen, Sparkles, TrendingUp, RefreshCw, Trophy, Target, ArrowRight, Play, CheckCircle2, ChevronRight, RefreshCcw, HelpCircle, Image as ImageIcon, Flame } from "lucide-react";
 
 interface StudentPortalViewProps {
   students: Student[];
   onRefreshData: () => Promise<void>;
+  centers?: Center[];
 }
 
-export default function StudentPortalView({ students, onRefreshData }: StudentPortalViewProps) {
+export default function StudentPortalView({ students, onRefreshData, centers = [] }: StudentPortalViewProps) {
   // Login and Auth states
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
     return localStorage.getItem("student_is_logged_in") === "true";
@@ -1151,66 +1152,74 @@ export default function StudentPortalView({ students, onRefreshData }: StudentPo
                 </div>
 
                 {/* Left/Right Scan & Bank Details */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  
-                  {/* UPI QR Scanner Simulator */}
-                  <div className="border border-slate-150 rounded-2xl p-4 flex flex-col items-center justify-center bg-slate-50">
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Scan UPI QR code</span>
-                    
-                    {/* Simulated High Fidelity QR Code Container */}
-                    <div className="w-32 h-32 bg-white border-2 border-indigo-200 rounded-xl p-2.5 flex flex-col justify-between relative shadow-sm">
-                      {/* Stylized QR Corner Targets */}
-                      <div className="absolute top-2 left-2 w-3 h-3 border-t-2 border-l-2 border-indigo-950" />
-                      <div className="absolute top-2 right-2 w-3 h-3 border-t-2 border-r-2 border-indigo-950" />
-                      <div className="absolute bottom-2 left-2 w-3 h-3 border-b-2 border-l-2 border-indigo-950" />
-                      <div className="absolute bottom-2 right-2 w-3 h-3 border-b-2 border-r-2 border-indigo-950" />
-                      
-                      {/* Stylized Simulated QR Matrix Dots */}
-                      <div className="flex-1 flex flex-wrap gap-1 p-1 opacity-90">
-                        {Array.from({ length: 49 }).map((_, i) => (
-                          <div
-                            key={i}
-                            className={`w-2.5 h-2.5 rounded-xs ${
-                              i % 3 === 0 || i % 7 === 1 || (i > 10 && i < 22)
-                                ? "bg-indigo-950"
-                                : "bg-transparent"
-                            }`}
-                          />
-                        ))}
-                      </div>
-                      
-                      {/* QR Abacus Center Logo Badge */}
-                      <div className="absolute inset-0 m-auto w-8 h-8 bg-amber-400 border border-indigo-950 rounded-lg flex items-center justify-center text-[10px] font-black text-indigo-950">
-                        G+
-                      </div>
-                    </div>
-                    
-                    <span className="text-[10px] font-mono text-indigo-700 font-bold mt-2">
-                      UPI: pay@geniplus
-                    </span>
-                  </div>
+                {(() => {
+                  const currentStudentCenter = centers.find(c => c.id === currentStudent.centerId) || centers[0] || {
+                    upiId: "pay@geniplus",
+                    bankDetails: "Account Name: Geniplus Education Pvt Ltd\nBank Name: ICICI Bank Ltd\nAccount Number: 1029 3847 5621\nIFSC Routing Code: ICIC0001029",
+                    qrCode: ""
+                  };
 
-                  {/* Direct Bank Account details */}
-                  <div className="border border-slate-150 rounded-2xl p-4 text-[11px] text-slate-600 flex flex-col justify-center space-y-2">
-                    <span className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest">Bank Details</span>
-                    <div>
-                      <span className="block text-[9px] text-slate-400">Account Name:</span>
-                      <strong className="text-indigo-950">Geniplus Education Pvt Ltd</strong>
+                  return (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      
+                      {/* UPI QR Scanner Simulator or uploaded QR image */}
+                      <div className="border border-slate-150 rounded-2xl p-4 flex flex-col items-center justify-center bg-slate-50">
+                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Scan UPI QR code</span>
+                        
+                        {currentStudentCenter.qrCode ? (
+                          <div className="w-32 h-32 bg-white border border-slate-200 rounded-xl p-1 flex items-center justify-center shadow-sm">
+                            <img
+                              src={currentStudentCenter.qrCode}
+                              alt="Payment QR Code"
+                              className="w-full h-full object-contain rounded"
+                              referrerPolicy="no-referrer"
+                            />
+                          </div>
+                        ) : (
+                          /* Simulated High Fidelity QR Code Container */
+                          <div className="w-32 h-32 bg-white border-2 border-indigo-200 rounded-xl p-2.5 flex flex-col justify-between relative shadow-sm">
+                            {/* Stylized QR Corner Targets */}
+                            <div className="absolute top-2 left-2 w-3 h-3 border-t-2 border-l-2 border-indigo-950" />
+                            <div className="absolute top-2 right-2 w-3 h-3 border-t-2 border-r-2 border-indigo-950" />
+                            <div className="absolute bottom-2 left-2 w-3 h-3 border-b-2 border-l-2 border-indigo-950" />
+                            <div className="absolute bottom-2 right-2 w-3 h-3 border-b-2 border-r-2 border-indigo-950" />
+                            
+                            {/* Stylized Simulated QR Matrix Dots */}
+                            <div className="flex-1 flex flex-wrap gap-1 p-1 opacity-90">
+                              {Array.from({ length: 49 }).map((_, i) => (
+                                <div
+                                  key={i}
+                                  className={`w-2.5 h-2.5 rounded-xs ${
+                                    i % 3 === 0 || i % 7 === 1 || (i > 10 && i < 22)
+                                      ? "bg-indigo-950"
+                                      : "bg-transparent"
+                                  }`}
+                                />
+                              ))}
+                            </div>
+                            
+                            {/* QR Abacus Center Logo Badge */}
+                            <div className="absolute inset-0 m-auto w-8 h-8 bg-amber-400 border border-indigo-950 rounded-lg flex items-center justify-center text-[10px] font-black text-indigo-950">
+                              G+
+                            </div>
+                          </div>
+                        )}
+                        
+                        <span className="text-[10px] font-mono text-indigo-700 font-bold mt-2">
+                          UPI ID: {currentStudentCenter.upiId || "pay@geniplus"}
+                        </span>
+                      </div>
+
+                      {/* Direct Bank Account details */}
+                      <div className="border border-slate-150 rounded-2xl p-4 text-[11px] text-slate-600 flex flex-col justify-center space-y-2 bg-slate-50">
+                        <span className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest">Bank Details</span>
+                        <div className="whitespace-pre-wrap font-medium text-slate-700 leading-relaxed">
+                          {currentStudentCenter.bankDetails || `Account Name: Geniplus Education Pvt Ltd\nBank Name: ICICI Bank Ltd\nAccount Number: 1029 3847 5621\nIFSC Routing Code: ICIC0001029`}
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <span className="block text-[9px] text-slate-400">Bank Name:</span>
-                      <strong className="text-indigo-950 font-display">ICICI Bank Ltd</strong>
-                    </div>
-                    <div>
-                      <span className="block text-[9px] text-slate-400">Account Number:</span>
-                      <strong className="text-indigo-950 font-mono">1029 3847 5621</strong>
-                    </div>
-                    <div>
-                      <span className="block text-[9px] text-slate-400">IFSC Routing Code:</span>
-                      <strong className="text-indigo-950 font-mono">ICIC0001029</strong>
-                    </div>
-                  </div>
-                </div>
+                  );
+                })()}
 
                 {/* Submission Form */}
                 <form onSubmit={handleSubmitProof} className="space-y-4">

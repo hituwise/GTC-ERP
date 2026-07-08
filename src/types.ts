@@ -11,9 +11,13 @@ export interface Center {
   subscriptionStart: string;
   subscriptionExpiry: string;
   status: string;
+  password?: string;
   trialDays?: number;
   trialExpiryDate?: string;
   isTrial?: boolean;
+  upiId?: string;
+  bankDetails?: string;
+  qrCode?: string;
 }
 
 export interface Teacher {
@@ -44,6 +48,13 @@ export interface Student {
   status: string;
   email?: string;
   password?: string;
+  notifications?: Array<{
+    id: string;
+    title: string;
+    message: string;
+    date: string;
+    read: boolean;
+  }>;
 }
 
 export interface CRMLead {

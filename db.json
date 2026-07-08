@@ -1,0 +1,27 @@
+{
+  "admins": [
+    {
+      "email": "genipluskids@gmail.com",
+      "name": "Geniplus Owner",
+      "password": "geniplus@2026"
+    },
+    {
+      "email": "admin@geniplus.com",
+      "name": "Super Admin (Demo)",
+      "password": "password123"
+    }
+  ],
+  "centers": [],
+  "teachers": [],
+  "students": [],
+  "leads": [],
+  "attendance": [],
+  "fees": [],
+  "feeStructures": [],
+  "expenses": [],
+  "homework": [],
+  "exams": [],
+  "practiceAssignments": [],
+  "practiceSubmissions": [],
+  "leaderboard": []
+}

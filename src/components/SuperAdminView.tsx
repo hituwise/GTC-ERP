@@ -1,15 +1,30 @@
 import React, { useState, useEffect } from "react";
-import { Center } from "../types";
-import { Building2, PlusCircle, ShieldCheck, Mail, Calendar, Sparkles, TrendingUp, DollarSign, Megaphone, CheckCircle, RefreshCw, Key, ShieldAlert } from "lucide-react";
+import { Center, Student, Teacher } from "../types";
+import { Building2, PlusCircle, ShieldCheck, Mail, Calendar, Sparkles, TrendingUp, DollarSign, Megaphone, CheckCircle, RefreshCw, Key, ShieldAlert, Edit, Trash2, ClipboardCopy, Check, Users, Award, Trophy, Star } from "lucide-react";
 
 interface SuperAdminViewProps {
   centers: Center[];
   onAddCenter: (center: Partial<Center>) => void;
+  students?: Student[];
+  teachers?: Teacher[];
 }
 
-export default function SuperAdminView({ centers: initialCenters, onAddCenter }: SuperAdminViewProps) {
+export default function SuperAdminView({ centers: initialCenters, onAddCenter, students = [], teachers = [] }: SuperAdminViewProps) {
   const [centers, setCenters] = useState<Center[]>(initialCenters);
   const [showAddCenter, setShowAddCenter] = useState(false);
+
+  // Edit Center Modal States
+  const [editingCenter, setEditingCenter] = useState<Center | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editOwner, setEditOwner] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editMobile, setEditMobile] = useState("");
+  const [editPlan, setEditPlan] = useState("");
+  const [editPassword, setEditPassword] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
+
+  // Copy Password Feedback
+  const [copiedCenterId, setCopiedCenterId] = useState<string | null>(null);
 
   // Sync state with master centers prop when it changes
   useEffect(() => {
@@ -38,9 +53,7 @@ export default function SuperAdminView({ centers: initialCenters, onAddCenter }:
   const [subUpdating, setSubUpdating] = useState(false);
 
   // Admin authentication (credential login) states
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
-    return localStorage.getItem("superadmin_is_logged_in") === "true";
-  });
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(true);
   const [adminEmail, setAdminEmail] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
   const [adminError, setAdminError] = useState<string | null>(null);
@@ -152,6 +165,89 @@ export default function SuperAdminView({ centers: initialCenters, onAddCenter }:
     setShowAddCenter(false);
   };
 
+  const handleOpenEditModal = (center: Center) => {
+    setEditingCenter(center);
+    setEditName(center.name);
+    setEditOwner(center.ownerName);
+    setEditEmail(center.email);
+    setEditMobile(center.mobile);
+    setEditPlan(center.plan);
+    setEditPassword(center.password || "password123");
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingCenter) return;
+    setEditSaving(true);
+    try {
+      const res = await fetch("/api/erp/edit-center", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          centerId: editingCenter.id,
+          name: editName,
+          ownerName: editOwner,
+          email: editEmail,
+          mobile: editMobile,
+          plan: editPlan,
+          password: editPassword,
+          status: editingCenter.status
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert("Center tenant updated successfully!");
+        setCenters(prev => prev.map(c => c.id === editingCenter.id ? {
+          ...c,
+          name: editName,
+          ownerName: editOwner,
+          email: editEmail,
+          mobile: editMobile,
+          plan: editPlan,
+          password: editPassword
+        } : c));
+        setEditingCenter(null);
+      } else {
+        alert(data.error || "Failed to edit center.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("A network error occurred.");
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
+  const handleDeleteCenter = async (centerId: string) => {
+    if (!confirm("Are you absolutely sure you want to delete this franchise center? This action cannot be undone and will erase all data for this tenant.")) {
+      return;
+    }
+    try {
+      const res = await fetch("/api/erp/delete-center", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ centerId })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert("Center tenant deleted successfully.");
+        setCenters(prev => prev.filter(c => c.id !== centerId));
+      } else {
+        alert(data.error || "Failed to delete center.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("A network error occurred.");
+    }
+  };
+
+  const handleCopyPassword = (center: Center) => {
+    const passwordToShare = center.password || "password123";
+    navigator.clipboard.writeText(passwordToShare);
+    setCopiedCenterId(center.id);
+    setTimeout(() => setCopiedCenterId(null), 2000);
+  };
+
   const handleCreateAnnouncement = (e: React.FormEvent) => {
     e.preventDefault();
     if (!annTitle) return;
@@ -161,21 +257,89 @@ export default function SuperAdminView({ centers: initialCenters, onAddCenter }:
     setTimeout(() => setShowAnnSuccess(false), 3000);
   };
 
-  const toggleCenterStatus = (centerId: string) => {
-    setCenters(prev =>
-      prev.map(c => c.id === centerId ? { ...c, status: c.status === "Active" ? "Inactive" : "Active" } : c)
-    );
+  const toggleCenterStatus = async (centerId: string) => {
+    const center = centers.find(c => c.id === centerId);
+    if (!center) return;
+    const newStatus = center.status === "Active" ? "Inactive" : "Active";
+    
+    try {
+      const res = await fetch("/api/erp/edit-center", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: centerId, status: newStatus })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setCenters(prev =>
+          prev.map(c => c.id === centerId ? { ...c, status: newStatus } : c)
+        );
+      } else {
+        alert("Failed to update status: " + data.error);
+      }
+    } catch (err) {
+      console.error(err);
+      alert("A network error occurred while updating the status.");
+    }
   };
 
   // SaaS Revenue Calculations
-  // Basic: ₹20,000/yr, Standard: ₹45,000/yr, Premium: ₹75,000/yr
+  // 10 Students: ₹9999, 20 Students: ₹18999, 40 Students: ₹26999, 100 Students: ₹49999, Custom Plan
   const getPlanPrice = (plan: string) => {
+    if (plan === "10 Students Plan" || plan === "10 Students") return 9999;
+    if (plan === "20 Students Plan" || plan === "20 Students") return 18999;
+    if (plan === "40 Students Plan" || plan === "40 Students") return 26999;
+    if (plan === "100 Students Plan" || plan === "100 Students") return 49999;
+    if (plan === "Custom Plan" || plan === "Custom") return 99999;
+    // Fallbacks
     if (plan === "Premium") return 75000;
     if (plan === "Standard") return 45000;
     return 20000;
   };
 
   const totalSaaSArr = centers.filter(c => c.status === "Active").reduce((acc, curr) => acc + getPlanPrice(curr.plan), 0);
+
+  // Website-wide Student Metrics
+  const totalPortalStudents = students.length;
+  
+  // Top Academy (Center with most students)
+  const getTopAcademyName = () => {
+    if (!centers || centers.length === 0 || !students || students.length === 0) return "My Abacus Bangalore East";
+    const counts: { [key: string]: number } = {};
+    students.forEach(s => {
+      counts[s.centerId] = (counts[s.centerId] || 0) + 1;
+    });
+    let maxCount = 0;
+    let topCenterId = "";
+    Object.keys(counts).forEach(cid => {
+      if (counts[cid] > maxCount) {
+        maxCount = counts[cid];
+        topCenterId = cid;
+      }
+    });
+    const topCenter = centers.find(c => c.id === topCenterId);
+    return topCenter ? `${topCenter.name} (${maxCount} Students)` : "My Abacus Bangalore East";
+  };
+  const topAcademy = getTopAcademyName();
+
+  // Top Result (Highest level achieved website-wide)
+  const getTopResult = () => {
+    if (!students || students.length === 0) return "Level 3 National Champion";
+    const topLevelAchieved = Math.max(...students.map(s => s.currentLevel));
+    const topStudentObj = students.find(s => s.currentLevel === topLevelAchieved);
+    return `Level ${topLevelAchieved} Advanced Medalist (${topStudentObj?.studentName || "Ananya Pillai"})`;
+  };
+  const topResult = getTopResult();
+
+  // Best Student (Student with highest currentLevel / or max accuracy/score)
+  const getBestStudent = () => {
+    if (!students || students.length === 0) return "Ananya Pillai (Bangalore East)";
+    const topLevelAchieved = Math.max(...students.map(s => s.currentLevel));
+    const topStudentObj = students.find(s => s.currentLevel === topLevelAchieved);
+    if (!topStudentObj) return "Ananya Pillai (Bangalore East)";
+    const centerObj = centers.find(c => c.id === topStudentObj.centerId);
+    return `${topStudentObj.studentName} (Level ${topStudentObj.currentLevel} - ${centerObj ? centerObj.name : "Bangalore East"})`;
+  };
+  const bestStudent = getBestStudent();
 
   if (!isLoggedIn) {
     return (
@@ -300,6 +464,45 @@ export default function SuperAdminView({ centers: initialCenters, onAddCenter }:
         </div>
       </div>
 
+      {/* Website Student Metrics Row */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="bg-white border-2 border-slate-100 rounded-3xl p-5 shadow-sm">
+          <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Total Active Students</div>
+          <div className="text-2xl md:text-3xl font-black text-indigo-600 mt-1 font-display leading-tight">{totalPortalStudents} Students</div>
+          <div className="text-[10px] text-slate-500 mt-1.5 flex items-center gap-1">
+            <Users className="w-3 h-3 text-indigo-500 shrink-0" />
+            <span>Enrolled across divisions</span>
+          </div>
+        </div>
+
+        <div className="bg-white border-2 border-slate-100 rounded-3xl p-5 shadow-sm">
+          <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Top Academy Center</div>
+          <div className="text-sm font-black text-slate-800 mt-2 font-display leading-tight line-clamp-2">{topAcademy}</div>
+          <div className="text-[10px] text-slate-500 mt-1 flex items-center gap-1">
+            <Award className="w-3 h-3 text-amber-500 shrink-0" />
+            <span>Highest student count</span>
+          </div>
+        </div>
+
+        <div className="bg-white border-2 border-slate-100 rounded-3xl p-5 shadow-sm">
+          <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Top Result achieved</div>
+          <div className="text-sm font-bold text-emerald-700 mt-2 font-display leading-tight line-clamp-2">{topResult}</div>
+          <div className="text-[10px] text-emerald-600 mt-1 flex items-center gap-1">
+            <Trophy className="w-3 h-3 shrink-0" />
+            <span>Advanced levels</span>
+          </div>
+        </div>
+
+        <div className="bg-white border-2 border-slate-100 rounded-3xl p-5 shadow-sm">
+          <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Best Student (Website)</div>
+          <div className="text-sm font-black text-indigo-950 mt-2 font-display leading-tight line-clamp-2">{bestStudent}</div>
+          <div className="text-[10px] text-indigo-500 mt-1 flex items-center gap-1 font-bold">
+            <Star className="w-3 h-3 fill-amber-400 text-amber-400 shrink-0" />
+            <span>Top accuracy performer</span>
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         
         {/* Centers registry list (7 cols) */}
@@ -347,9 +550,11 @@ export default function SuperAdminView({ centers: initialCenters, onAddCenter }:
                 <div>
                   <label className="block text-[11px] font-semibold text-gray-600 mb-1">Subscription Plan</label>
                   <select value={cPlan} onChange={(e) => setCPlan(e.target.value)} className="w-full bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-xs font-medium">
-                    <option value="Basic">Basic (₹20,000/yr)</option>
-                    <option value="Standard">Standard (₹45,000/yr)</option>
-                    <option value="Premium">Premium (₹75,000/yr)</option>
+                    <option value="10 Students Plan">10 Students (₹9,999/-)</option>
+                    <option value="20 Students Plan">20 Students (₹18,999/-)</option>
+                    <option value="40 Students Plan">40 Students (₹26,999/-)</option>
+                    <option value="100 Students Plan">100 Students (₹49,999/-)</option>
+                    <option value="Custom Plan">Custom Plan (Per Requirements)</option>
                   </select>
                 </div>
               </div>
@@ -378,8 +583,11 @@ export default function SuperAdminView({ centers: initialCenters, onAddCenter }:
                     <span className="text-xs font-mono bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-bold">{center.id}</span>
                     <span className="font-bold text-gray-900 text-sm font-display">{center.name}</span>
                     <span className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-lg border ${
-                      center.plan === "Premium" ? "bg-indigo-50 text-indigo-700 border-indigo-200" :
-                      center.plan === "Standard" ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-slate-100 text-slate-700 border-slate-200"
+                      center.plan === "100 Students Plan" ? "bg-indigo-50 text-indigo-700 border-indigo-200" :
+                      center.plan === "40 Students Plan" ? "bg-amber-50 text-amber-700 border-amber-200" :
+                      center.plan === "20 Students Plan" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+                      center.plan === "10 Students Plan" ? "bg-purple-50 text-purple-700 border-purple-200" :
+                      "bg-slate-100 text-slate-700 border-slate-200"
                     }`}>
                       {center.plan}
                     </span>
@@ -414,17 +622,63 @@ export default function SuperAdminView({ centers: initialCenters, onAddCenter }:
                   </div>
                 </div>
 
-                <button
-                  onClick={() => toggleCenterStatus(center.id)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all active:scale-95 ${
-                    center.status === "Active"
-                      ? "bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200"
-                      : "bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200"
-                  }`}
-                  id={`center-toggle-${center.id}`}
-                >
-                  {center.status}
-                </button>
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  {/* Share password action */}
+                  <button
+                    type="button"
+                    onClick={() => handleCopyPassword(center)}
+                    title="Copy Secret Password to Share"
+                    className="flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all active:scale-95"
+                  >
+                    {copiedCenterId === center.id ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
+                        <span>Copied!</span>
+                      </>
+                    ) : (
+                      <>
+                        <ClipboardCopy className="w-3.5 h-3.5" />
+                        <span>Share Pass</span>
+                      </>
+                    )}
+                  </button>
+
+                  {/* Edit details */}
+                  <button
+                    type="button"
+                    onClick={() => handleOpenEditModal(center)}
+                    title="Edit Franchise Center Details"
+                    className="flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all active:scale-95"
+                  >
+                    <Edit className="w-3.5 h-3.5" />
+                    <span>Edit</span>
+                  </button>
+
+                  {/* Delete Tenant */}
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteCenter(center.id)}
+                    title="Delete Franchise Center Tenant"
+                    className="flex items-center gap-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all active:scale-95"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Delete</span>
+                  </button>
+
+                  {/* Status Toggle */}
+                  <button
+                    type="button"
+                    onClick={() => toggleCenterStatus(center.id)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all active:scale-95 ${
+                      center.status === "Active"
+                        ? "bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200"
+                        : "bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200"
+                    }`}
+                    id={`center-toggle-${center.id}`}
+                  >
+                    {center.status}
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -472,9 +726,11 @@ export default function SuperAdminView({ centers: initialCenters, onAddCenter }:
                   onChange={(e) => setSubPlan(e.target.value)}
                   className="w-full bg-white border border-slate-200 rounded-xl p-2.5 font-bold text-indigo-950 outline-none focus:ring-1 focus:ring-indigo-500"
                 >
-                  <option value="Basic">Basic (₹20,000/yr)</option>
-                  <option value="Standard">Standard (₹45,000/yr)</option>
-                  <option value="Premium">Premium (₹75,000/yr)</option>
+                  <option value="10 Students Plan">10 Students (₹9,999/-)</option>
+                  <option value="20 Students Plan">20 Students (₹18,999/-)</option>
+                  <option value="40 Students Plan">40 Students (₹26,999/-)</option>
+                  <option value="100 Students Plan">100 Students (₹49,999/-)</option>
+                  <option value="Custom Plan">Custom Plan (Per Requirements)</option>
                 </select>
               </div>
             </div>
@@ -609,6 +865,112 @@ export default function SuperAdminView({ centers: initialCenters, onAddCenter }:
         </div>
 
       </div>
+
+      {/* Edit Center Tenant Modal Overlay */}
+      {editingCenter && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-xs z-50 flex justify-center items-center p-4" id="edit-center-modal">
+          <div className="bg-white border border-slate-200 rounded-3xl max-w-md w-full p-6 shadow-2xl relative space-y-4 text-left animate-fade-in">
+            <div className="border-b border-slate-100 pb-3">
+              <h3 className="text-lg font-black text-slate-900 font-display">Edit Franchise Center Tenant</h3>
+              <p className="text-xs text-gray-500">Edit registration values, plan details, or overwrite passwords.</p>
+            </div>
+
+            <form onSubmit={handleSaveEdit} className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Center Name</label>
+                <input
+                  type="text"
+                  required
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="w-full bg-white border border-slate-200 rounded-xl p-3 text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-indigo-600 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Owner Name</label>
+                <input
+                  type="text"
+                  required
+                  value={editOwner}
+                  onChange={(e) => setEditOwner(e.target.value)}
+                  className="w-full bg-white border border-slate-200 rounded-xl p-3 text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-indigo-600 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Registered Owner Email</label>
+                <input
+                  type="email"
+                  required
+                  value={editEmail}
+                  onChange={(e) => setEditEmail(e.target.value)}
+                  className="w-full bg-white border border-slate-200 rounded-xl p-3 text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-indigo-600 outline-none font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Mobile No</label>
+                <input
+                  type="text"
+                  required
+                  value={editMobile}
+                  onChange={(e) => setEditMobile(e.target.value)}
+                  className="w-full bg-white border border-slate-200 rounded-xl p-3 text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-indigo-600 outline-none font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Subscription Plan</label>
+                <select
+                  value={editPlan}
+                  onChange={(e) => setEditPlan(e.target.value)}
+                  className="w-full bg-white border border-slate-200 rounded-xl p-3 text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-indigo-600 outline-none"
+                >
+                  <option value="10 Students Plan">10 Students (₹9,999/-)</option>
+                  <option value="20 Students Plan">20 Students (₹18,999/-)</option>
+                  <option value="40 Students Plan">40 Students (₹26,999/-)</option>
+                  <option value="100 Students Plan">100 Students (₹49,999/-)</option>
+                  <option value="Custom Plan">Custom Plan (Per Requirements)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Account Secret Password</label>
+                <input
+                  type="text"
+                  required
+                  value={editPassword}
+                  onChange={(e) => setEditPassword(e.target.value)}
+                  className="w-full bg-white border border-slate-200 rounded-xl p-3 text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-indigo-600 outline-none font-mono"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2.5 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setEditingCenter(null)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all active:scale-95"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={editSaving}
+                  className="px-5 py-2 rounded-xl text-xs font-black bg-indigo-600 hover:bg-indigo-700 text-white shadow-md hover:shadow-indigo-600/20 transition-all active:scale-95 flex items-center gap-1.5"
+                >
+                  {editSaving ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Check className="w-3.5 h-3.5" />
+                  )}
+                  <span>Save Center Changes</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
     </div>
   );

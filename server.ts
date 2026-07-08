@@ -3,13 +3,37 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
+import fs from "fs";
 
 dotenv.config();
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: "50mb" })); // Support large profile photo base64 strings
+app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
 const PORT = 3000;
+const DB_FILE = path.join(process.cwd(), "db.json");
+
+// Global In-Memory multi-tenant store
+const db: { [key: string]: any[] } = {
+  admins: [
+    { email: "genipluskids@gmail.com", name: "Geniplus Owner", password: "geniplus@2026" },
+    { email: "admin@geniplus.com", name: "Super Admin (Demo)", password: "password123" }
+  ],
+  centers: [],
+  teachers: [],
+  students: [],
+  leads: [],
+  attendance: [],
+  fees: [],
+  feeStructures: [],
+  expenses: [],
+  homework: [],
+  exams: [],
+  practiceAssignments: [],
+  practiceSubmissions: [],
+  leaderboard: []
+};
 
 // Lazy initialize Gemini API client
 let aiClient: GoogleGenAI | null = null;
@@ -32,98 +56,74 @@ function getGeminiClient(): GoogleGenAI {
   return aiClient;
 }
 
-// Global In-Memory multi-tenant store
-const db: { [key: string]: any[] } = {
-  centers: [
-    { id: "C001", name: "Geniplus Bangalore East", ownerName: "Rajesh Kumar", mobile: "+91 98765 43210", email: "rajesh.east@geniplus.com", city: "Bangalore", state: "Karnataka", country: "India", plan: "Premium", subscriptionStart: "2026-01-15", subscriptionExpiry: "2027-01-15", status: "Active" },
-    { id: "C002", name: "Geniplus Mumbai West", ownerName: "Anjali Shah", mobile: "+91 91234 56789", email: "anjali.west@geniplus.com", city: "Mumbai", state: "Maharashtra", country: "India", plan: "Standard", subscriptionStart: "2026-02-10", subscriptionExpiry: "2027-02-10", status: "Active" },
-    { id: "C003", name: "Geniplus Delhi Central", ownerName: "Amit Sharma", mobile: "+91 88888 77777", email: "amit.delhi@geniplus.com", city: "New Delhi", state: "Delhi", country: "India", plan: "Basic", subscriptionStart: "2026-03-01", subscriptionExpiry: "2026-09-01", status: "Active" }
-  ],
-  teachers: [
-    { id: "T001", centerId: "C001", name: "Sunitha Rao", email: "sunitha@geniplus.com", mobile: "+91 99001 12233", joiningDate: "2026-01-20", role: "Senior Abacus Trainer", status: "Active", password: "password123" },
-    { id: "T002", centerId: "C001", name: "Meera Nair", email: "meera@geniplus.com", mobile: "+91 99002 23344", joiningDate: "2026-02-01", role: "Junior Teacher", status: "Active", password: "password123" },
-    { id: "T003", centerId: "C002", name: "Ketan Mehta", email: "ketan@geniplus.com", mobile: "+91 98111 22233", joiningDate: "2026-02-15", role: "Head Coach", status: "Active", password: "password123" }
-  ],
-  students: [
-    { id: "S001", centerId: "C001", teacherId: "T001", studentName: "Aarav Rajesh", parentName: "Rajesh Kumar", parentMobile: "+91 98765 43210", dateOfBirth: "2018-05-12", age: 8, school: "Greenwood High", currentLevel: 2, batch: "Sat 10:00 AM", joiningDate: "2026-01-18", status: "Active", email: "aarav@gmail.com", password: "password123" },
-    { id: "S002", centerId: "C001", teacherId: "T001", studentName: "Ananya Pillai", parentName: "Hari Pillai", parentMobile: "+91 98450 12345", dateOfBirth: "2017-09-23", age: 9, school: "Delhi Public School", currentLevel: 3, batch: "Sat 10:00 AM", joiningDate: "2026-01-22", status: "Active", email: "ananya@gmail.com", password: "password123" },
-    { id: "S003", centerId: "C001", teacherId: "T002", studentName: "Rohan Das", parentName: "Sanjay Das", parentMobile: "+91 98451 98765", dateOfBirth: "2019-11-05", age: 6, school: "National Public School", currentLevel: 1, batch: "Sun 11:30 AM", joiningDate: "2026-02-05", status: "Active", email: "rohan@gmail.com", password: "password123" },
-    { id: "S004", centerId: "C002", teacherId: "T003", studentName: "Vihaan Shah", parentName: "Anjali Shah", parentMobile: "+91 91234 56789", dateOfBirth: "2018-01-30", age: 8, school: "Podar International", currentLevel: 2, batch: "Sat 2:00 PM", joiningDate: "2026-02-12", status: "Active", email: "vihaan@gmail.com", password: "password123" }
-  ],
-  leads: [
-    { id: "L001", centerId: "C001", name: "Kabir Mehra", parentName: "Vikram Mehra", parentMobile: "+91 97777 66666", source: "Facebook Ad", campaign: "Summer Abacus Camps", counsellor: "Neha Verma", status: "Demo Scheduled", date: "2026-07-01", remarks: "Interested in weekend batch. Scheduled demo for Sat 11am." },
-    { id: "L002", centerId: "C001", name: "Siddharth Sen", parentName: "Rina Sen", parentMobile: "+91 96666 55555", source: "Google Search", campaign: "Direct Search", counsellor: "Neha Verma", status: "New Lead", date: "2026-07-03", remarks: "Enquired about level 1 fees and age suitability." },
-    { id: "L003", centerId: "C001", name: "Riya Patel", parentName: "Darshan Patel", parentMobile: "+91 95555 44444", source: "Referral", campaign: "Friend Referral Plan", counsellor: "Neha Verma", status: "Admission Confirmed", date: "2026-06-28", remarks: "Joined level 1 with discount. Paid admission fee." },
-    { id: "L004", centerId: "C002", name: "Nisha Gore", parentName: "Suhas Gore", parentMobile: "+91 94444 33333", source: "Instagram Post", campaign: "Mental Math Mastery", counsellor: "Rahul Deshmukh", status: "Contacted", date: "2026-07-02", remarks: "Call answered, child is 7 yrs. Will check with father and get back." }
-  ],
-  attendance: [
-    { studentId: "S001", date: "2026-07-04", status: "Present", level: 2, batch: "Sat 10:00 AM" },
-    { studentId: "S002", date: "2026-07-04", status: "Present", level: 3, batch: "Sat 10:00 AM" },
-    { studentId: "S003", date: "2026-07-05", status: "Absent", level: 1, batch: "Sun 11:30 AM" },
-    { studentId: "S001", date: "2026-06-27", status: "Present", level: 2, batch: "Sat 10:00 AM" },
-    { studentId: "S002", date: "2026-06-27", status: "Present", level: 3, batch: "Sat 10:00 AM" },
-    { studentId: "S003", date: "2026-06-28", status: "Present", level: 1, batch: "Sun 11:30 AM" }
-  ],
-  fees: [
-    { id: "F001", studentId: "S001", centerId: "C001", month: "July 2026", amount: 2500, status: "Paid", paidDate: "2026-07-02", discount: 0 },
-    { id: "F002", studentId: "S002", centerId: "C001", month: "July 2026", amount: 2500, status: "Unpaid", paidDate: "", discount: 0 },
-    { id: "F003", studentId: "S003", centerId: "C001", month: "July 2026", amount: 2500, status: "Paid", paidDate: "2026-07-03", discount: 500 },
-    { id: "F004", studentId: "S004", centerId: "C002", month: "July 2026", amount: 2800, status: "Unpaid", paidDate: "", discount: 0 }
-  ],
-  feeStructures: [
-    {
-      centerId: "C001",
-      registrationFee: 1500,
-      levelFee: 2500,
-      examFee: 500,
-      extraFees: [
-        { id: "X001", name: "National Abacus Competition 2026", amount: 1000 },
-        { id: "X002", name: "Annual Day Event Kit", amount: 600 }
-      ]
-    },
-    {
-      centerId: "C002",
-      registrationFee: 1800,
-      levelFee: 2800,
-      examFee: 600,
-      extraFees: [
-        { id: "X003", name: "State Level Championship Fee", amount: 1200 }
-      ]
+function saveDb() {
+  try {
+    fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), "utf-8");
+  } catch (err) {
+    console.error("Error saving persistent database:", err);
+  }
+}
+
+function loadDb() {
+  try {
+    if (fs.existsSync(DB_FILE)) {
+      // Create a safety backup on server startup
+      try {
+        const backupDir = path.join(process.cwd(), "backups");
+        if (!fs.existsSync(backupDir)) {
+          fs.mkdirSync(backupDir, { recursive: true });
+        }
+        const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+        const backupFile = path.join(backupDir, `db_backup_${timestamp}.json`);
+        fs.copyFileSync(DB_FILE, backupFile);
+        console.log(`[DATA SAFEGUARD] Safety backup of database created at: ${backupFile}`);
+      } catch (backupErr) {
+        console.error("Failed to create database startup backup:", backupErr);
+      }
+
+      const raw = fs.readFileSync(DB_FILE, "utf-8");
+      const parsed = JSON.parse(raw);
+      Object.keys(parsed).forEach(key => {
+        db[key] = parsed[key];
+      });
+
+      // DATABASE INTEGRITY UPGRADE: Guarantee all franchise centers, teachers/staff, and students are active
+      if (Array.isArray(db.centers)) {
+        db.centers.forEach(c => {
+          if (!c.status) c.status = "Active";
+        });
+      }
+      if (Array.isArray(db.teachers)) {
+        db.teachers.forEach(t => {
+          if (!t.status) t.status = "Active";
+        });
+      }
+      if (Array.isArray(db.students)) {
+        db.students.forEach(s => {
+          if (!s.status) s.status = "Active";
+        });
+      }
+
+      console.log("Persistent database loaded and validated successfully from db.json");
+    } else {
+      saveDb();
     }
-  ],
-  expenses: [
-    { id: "E001", centerId: "C001", category: "Rent", amount: 15000, date: "2026-07-01", description: "Monthly Center Office Rent" },
-    { id: "E002", centerId: "C001", category: "Salary", amount: 12000, date: "2026-07-05", description: "Teacher Sunitha Rao Salary" },
-    { id: "E003", centerId: "C001", category: "Marketing", amount: 4500, date: "2026-07-02", description: "Facebook Ads July Campaign" },
-    { id: "E004", centerId: "C001", category: "Utilities", amount: 2200, date: "2026-07-04", description: "Electricity and Broadband Connection" }
-  ],
-  homework: [
-    { id: "H001", studentId: "S001", week: "Week 27", task: "Level 2: Big Friend Addition (+9, +8) - Pages 12 to 14", status: "Completed", score: "A" },
-    { id: "H002", studentId: "S002", week: "Week 27", task: "Level 3: Double Digit Addition - 3 Rows (Flash Practice)", status: "Completed", score: "B+" },
-    { id: "H003", studentId: "S003", week: "Week 27", task: "Level 1: Direct Bead Addition 1-4, Worksheet 3", status: "Incomplete", score: "N/A" }
-  ],
-  exams: [
-    { id: "EX001", studentId: "S001", examName: "Unit 1 Test (Level 2)", date: "2026-06-20", score: 85, maxScore: 100, certificate: "Yes", feedback: "Very good at direct bead sums. Speed is fine, but needs practice in Big Friends." },
-    { id: "EX002", studentId: "S002", examName: "Monthly Exam (Level 3)", date: "2026-06-25", score: 92, maxScore: 100, certificate: "Yes", feedback: "Excellent Speed Test results. Keep it up!" }
-  ],
-  practiceAssignments: [
-    { id: "PA001", studentId: "S001", title: "Daily Division Challenge", sumsCount: 30, completedCount: 22, level: 2, dueDate: "2026-07-07", teacherFocus: "Excellent rhythm. Add one division round after revision.", digits: 2, rows: 1, type: "Division", starsEarned: 63 },
-    { id: "PA002", studentId: "S001", title: "Double Digit Speed Run", sumsCount: 20, completedCount: 10, level: 2, dueDate: "2026-07-08", teacherFocus: "Concentrate on thumb movements for bottom beads.", digits: 2, rows: 3, type: "Addition", starsEarned: 35 },
-    { id: "PA003", studentId: "S002", title: "Big Friend Subtraction", sumsCount: 30, completedCount: 30, level: 3, dueDate: "2026-07-07", teacherFocus: "Keep fingers close to the beam for maximum speed.", digits: 2, rows: 4, type: "Subtraction", starsEarned: 90 },
-    { id: "PA004", studentId: "S003", title: "Direct Bead Fundamentals", sumsCount: 15, completedCount: 15, level: 1, dueDate: "2026-07-07", teacherFocus: "Focus on zero-recenter accuracy.", digits: 1, rows: 3, type: "Addition", starsEarned: 45 }
-  ],
-  practiceSubmissions: [
-    { id: "PS001", studentId: "S001", studentName: "Aarav Rajesh", assignmentId: "PA001", assignmentTitle: "Daily Division Challenge", date: "2026-07-06", type: "Division", totalSums: 10, correctSums: 9, accuracy: 90, starsEarned: 30, mode: "Assigned" },
-    { id: "PS002", studentId: "S002", studentName: "Ananya Pillai", assignmentId: "PA003", assignmentTitle: "Big Friend Subtraction", date: "2026-07-07", type: "Subtraction", totalSums: 30, correctSums: 30, accuracy: 100, starsEarned: 90, mode: "Assigned" },
-    { id: "PS003", studentId: "S003", studentName: "Rohan Das", assignmentId: "PA004", assignmentTitle: "Direct Bead Fundamentals", date: "2026-07-07", type: "Addition", totalSums: 15, correctSums: 12, accuracy: 80, starsEarned: 45, mode: "Assigned" }
-  ],
-  leaderboard: [
-    { id: "LB001", studentId: "S001", studentName: "Aarav Rajesh", stars: 185, level: 2, completedCount: 14 },
-    { id: "LB002", studentId: "S002", studentName: "Ananya Pillai", stars: 240, level: 3, completedCount: 20 },
-    { id: "LB003", studentId: "S003", studentName: "Rohan Das", stars: 95, level: 1, completedCount: 8 },
-    { id: "LB004", studentId: "S004", studentName: "Vihaan Shah", stars: 120, level: 2, completedCount: 11 }
-  ]
-};
+  } catch (err) {
+    console.error("Error loading persistent database:", err);
+  }
+}
+
+loadDb();
+
+// Auto-save database on any mutative ERP endpoint requests
+app.use("/api/erp/*", (req, res, next) => {
+  if (req.method === "POST" || req.method === "PUT" || req.method === "DELETE") {
+    res.on("finish", () => {
+      saveDb();
+    });
+  }
+  next();
+});
 
 // ERP Data endpoints
 app.get("/api/erp/data", (req, res) => {
@@ -142,6 +142,7 @@ app.post("/api/erp/add-center", (req, res) => {
     state: req.body.state || "",
     country: req.body.country || "India",
     plan: req.body.plan || "Standard",
+    password: req.body.password || "password123",
     subscriptionStart: new Date().toISOString().split("T")[0],
     subscriptionExpiry: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
     status: "Active"
@@ -685,6 +686,219 @@ app.post("/api/erp/update-student-level", (req, res) => {
   }
   student.currentLevel = Number(level);
   res.json({ success: true, student });
+});
+
+// 6a. Update teacher role/designation
+app.post("/api/erp/update-teacher-role", (req, res) => {
+  const { teacherId, role } = req.body;
+  const teacher = db.teachers.find(t => t.id === teacherId);
+  if (!teacher) {
+    return res.status(404).json({ success: false, error: "Teacher not found" });
+  }
+  teacher.role = role;
+  res.json({ success: true, teacher });
+});
+
+// 6b. Update student-teacher assignment
+app.post("/api/erp/update-student-teacher", (req, res) => {
+  const { studentId, teacherId } = req.body;
+  const student = db.students.find(s => s.id === studentId);
+  if (!student) {
+    return res.status(404).json({ success: false, error: "Student not found" });
+  }
+  student.teacherId = teacherId;
+  res.json({ success: true, student });
+});
+
+// 6c. Update center payment details (UPI QR, UPI ID, Bank Details)
+app.post("/api/erp/update-payment-details", (req, res) => {
+  const { centerId, upiId, bankDetails, qrCode } = req.body;
+  const center = db.centers.find(c => c.id === centerId);
+  if (!center) {
+    return res.status(404).json({ success: false, error: "Center not found" });
+  }
+  center.upiId = upiId;
+  center.bankDetails = bankDetails;
+  center.qrCode = qrCode;
+  res.json({ success: true, center });
+});
+
+// 6d. Send student dashboard in-app notification
+app.post("/api/erp/send-student-notification", (req, res) => {
+  const { studentId, title, message } = req.body;
+  const student = db.students.find(s => s.id === studentId);
+  if (!student) {
+    return res.status(404).json({ success: false, error: "Student not found" });
+  }
+  if (!student.notifications) {
+    student.notifications = [];
+  }
+  student.notifications.unshift({
+    id: `N${Date.now()}`,
+    title,
+    message,
+    date: new Date().toISOString().split("T")[0],
+    read: false
+  });
+  res.json({ success: true, student });
+});
+
+
+// 7. Super Admin updates Center Tenant details
+app.post("/api/erp/edit-center", (req, res) => {
+  const { id, name, ownerName, email, mobile, plan, status, password } = req.body;
+  const center = db.centers.find(c => c.id === id);
+  if (!center) {
+    return res.status(404).json({ success: false, error: "Center not found" });
+  }
+
+  if (name !== undefined) center.name = name;
+  if (ownerName !== undefined) center.ownerName = ownerName;
+  if (email !== undefined) center.email = email;
+  if (mobile !== undefined) center.mobile = mobile;
+  if (plan !== undefined) center.plan = plan;
+  if (status !== undefined) center.status = status;
+  if (password !== undefined) center.password = password;
+
+  res.json({ success: true, center });
+});
+
+// 8. Super Admin deletes a Center Tenant account
+app.post("/api/erp/delete-center", (req, res) => {
+  const { id, centerId } = req.body;
+  const targetId = id || centerId;
+  const idx = db.centers.findIndex(c => c.id === targetId);
+  if (idx === -1) {
+    return res.status(404).json({ success: false, error: "Center not found" });
+  }
+  const removed = db.centers.splice(idx, 1)[0];
+  res.json({ success: true, id: removed.id });
+});
+
+// 8a. Delete teacher/staff (Center head removes staff)
+app.post("/api/erp/delete-teacher", (req, res) => {
+  const { teacherId } = req.body;
+  const idx = db.teachers.findIndex(t => t.id === teacherId);
+  if (idx === -1) {
+    return res.status(404).json({ success: false, error: "Teacher not found" });
+  }
+  const removed = db.teachers.splice(idx, 1)[0];
+  res.json({ success: true, teacherId: removed.id });
+});
+
+// 8b. Update student active/inactive status (Teacher manages student active state)
+app.post("/api/erp/update-student-status", (req, res) => {
+  const { studentId, status } = req.body;
+  const student = db.students.find(s => s.id === studentId);
+  if (!student) {
+    return res.status(404).json({ success: false, error: "Student not found" });
+  }
+  student.status = status || "Active";
+  res.json({ success: true, student });
+});
+
+// 9. Unified profile editor (Name, Password, Base64 profile photo)
+app.post("/api/erp/update-profile", (req, res) => {
+  const { email, role, name, password, photo } = req.body;
+  let updated = false;
+  let updatedUser: any = null;
+
+  const normalizedEmail = email.trim().toLowerCase();
+
+  if (role === "Super Admin") {
+    const admin = db.admins.find(a => a.email.toLowerCase() === normalizedEmail);
+    if (admin) {
+      if (name) admin.name = name;
+      if (password) admin.password = password;
+      if (photo !== undefined) admin.photo = photo;
+      updated = true;
+      updatedUser = admin;
+    }
+  } else if (role === "Center Admin") {
+    const center = db.centers.find(c => c.email.toLowerCase() === normalizedEmail);
+    if (center) {
+      if (name) center.ownerName = name;
+      if (password) center.password = password;
+      if (photo !== undefined) center.photo = photo;
+      updated = true;
+      updatedUser = { ...center, name: center.ownerName };
+    }
+  } else if (role === "Teacher") {
+    const teacher = db.teachers.find(t => t.email.toLowerCase() === normalizedEmail);
+    if (teacher) {
+      if (name) teacher.name = name;
+      if (password) teacher.password = password;
+      if (photo !== undefined) teacher.photo = photo;
+      updated = true;
+      updatedUser = teacher;
+    }
+  } else if (role === "Student") {
+    const student = db.students.find(s => s.email.toLowerCase() === normalizedEmail);
+    if (student) {
+      if (name) student.studentName = name;
+      if (password) student.password = password;
+      if (photo !== undefined) student.photo = photo;
+      updated = true;
+      updatedUser = { ...student, name: student.studentName };
+    }
+  }
+
+  if (updated) {
+    res.json({ success: true, user: updatedUser });
+  } else {
+    res.status(404).json({ success: false, error: "User profile not found in system databases." });
+  }
+});
+
+// 10. Self-service password recovery flow
+app.post("/api/erp/forgot-password", (req, res) => {
+  const { email, newPassword } = req.body;
+  if (!email || !newPassword) {
+    return res.status(400).json({ success: false, error: "Email ID and new password are required." });
+  }
+
+  const normalizedEmail = email.trim().toLowerCase();
+  let found = false;
+
+  // Search admins
+  const admin = db.admins?.find(a => a.email.toLowerCase() === normalizedEmail);
+  if (admin) {
+    admin.password = newPassword;
+    found = true;
+  }
+
+  // Search centers
+  if (!found) {
+    const center = db.centers.find(c => c.email.toLowerCase() === normalizedEmail);
+    if (center) {
+      center.password = newPassword;
+      found = true;
+    }
+  }
+
+  // Search teachers
+  if (!found) {
+    const teacher = db.teachers.find(t => t.email.toLowerCase() === normalizedEmail);
+    if (teacher) {
+      teacher.password = newPassword;
+      found = true;
+    }
+  }
+
+  // Search students
+  if (!found) {
+    const student = db.students.find(s => s.email.toLowerCase() === normalizedEmail);
+    if (student) {
+      student.password = newPassword;
+      found = true;
+    }
+  }
+
+  if (found) {
+    res.json({ success: true, message: "Your password has been successfully reset! You can now log in." });
+  } else {
+    res.status(404).json({ success: false, error: "We couldn't find a Geniplus account registered under this email ID." });
+  }
 });
 
 

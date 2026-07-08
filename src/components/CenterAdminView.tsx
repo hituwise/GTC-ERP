@@ -1,6 +1,7 @@
 import React, { useState } from "react";
-import { Teacher, Student, FeeRecord, ExpenseRecord, FeeStructure } from "../types";
-import { Users, Landmark, FileSpreadsheet, PlusCircle, CreditCard, ChevronRight, Calculator, PieChart, TrendingUp, TrendingDown, DollarSign, LogOut, RefreshCw, Settings, Sparkles, Receipt, Trash2 } from "lucide-react";
+import { Teacher, Student, FeeRecord, ExpenseRecord, FeeStructure, Center, CRMLead } from "../types";
+import { Users, Landmark, FileSpreadsheet, PlusCircle, CreditCard, ChevronRight, Calculator, PieChart, TrendingUp, TrendingDown, DollarSign, LogOut, RefreshCw, Settings, Sparkles, Receipt, Trash2, Send, MessageSquare, Image } from "lucide-react";
+import CrmView from "./CrmView";
 
 interface CenterAdminViewProps {
   teachers: Teacher[];
@@ -13,6 +14,10 @@ interface CenterAdminViewProps {
   onPayFee: (feeId: string) => void;
   onAddFee: (fee: Partial<FeeRecord>) => Promise<any>;
   onDeleteFee: (feeId: string) => Promise<any>;
+  centers?: Center[];
+  leads?: CRMLead[];
+  onAddLead?: (lead: Partial<CRMLead>) => void;
+  currentUser?: { role: string; email: string; id?: string; name: string; photo?: string } | null;
 }
 
 export default function CenterAdminView({
@@ -25,22 +30,43 @@ export default function CenterAdminView({
   onAddExpense,
   onPayFee,
   onAddFee,
-  onDeleteFee
+  onDeleteFee,
+  centers = [],
+  leads = [],
+  onAddLead = () => {},
+  currentUser
 }: CenterAdminViewProps) {
   
+  // Unified logged-in center resolution
+  const loggedInInfo = currentUser || (() => {
+    const saved = localStorage.getItem("erp_logged_in_user");
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return null;
+  })();
+
+  const activeCenterId = loggedInInfo?.id || "C001";
+  const activeCenter = (centers || []).find(c => c.id === activeCenterId) || (centers || []).find(c => c.email.toLowerCase() === loggedInInfo?.email?.toLowerCase());
+  const activeCenterName = activeCenter?.name || "My Abacus Academy";
+  const activeCenterOwner = activeCenter?.ownerName || loggedInInfo?.name || "Center Head";
+  const activeCenterEmail = activeCenter?.email || loggedInInfo?.email || "rajesh.east@geniplus.com";
+
   // Local state synchronization
-  const [teachers, setTeachers] = useState<Teacher[]>(initialTeachers.filter(t => t.centerId === "C001"));
-  const [students, setStudents] = useState<Student[]>(initialStudents.filter(s => s.centerId === "C001"));
-  const [fees, setFees] = useState<FeeRecord[]>(initialFees.filter(f => f.centerId === "C001"));
-  const [expenses, setExpenses] = useState<ExpenseRecord[]>(initialExpenses.filter(e => e.centerId === "C001"));
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [fees, setFees] = useState<FeeRecord[]>([]);
+  const [expenses, setExpenses] = useState<ExpenseRecord[]>([]);
 
   // Real-time synchronization whenever props change
   React.useEffect(() => {
-    setTeachers(initialTeachers.filter(t => t.centerId === "C001"));
-    setStudents(initialStudents.filter(s => s.centerId === "C001"));
-    setFees(initialFees.filter(f => f.centerId === "C001"));
-    setExpenses(initialExpenses.filter(e => e.centerId === "C001"));
-  }, [initialTeachers, initialStudents, initialFees, initialExpenses]);
+    setTeachers(initialTeachers.filter(t => t.centerId === activeCenterId));
+    setStudents(initialStudents.filter(s => s.centerId === activeCenterId));
+    setFees(initialFees.filter(f => f.centerId === activeCenterId));
+    setExpenses(initialExpenses.filter(e => e.centerId === activeCenterId));
+  }, [initialTeachers, initialStudents, initialFees, initialExpenses, activeCenterId]);
 
   // Center Admin Authentication States
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
@@ -102,7 +128,7 @@ export default function CenterAdminView({
   // Load fee structure on mount
   const loadFeeStructure = async () => {
     try {
-      const res = await fetch("/api/erp/fee-structure/C001");
+      const res = await fetch(`/api/erp/fee-structure/${activeCenterId}`);
       const data = await res.json();
       if (data.success && data.feeStructure) {
         setFeeStructure(data.feeStructure);
@@ -118,7 +144,7 @@ export default function CenterAdminView({
 
   React.useEffect(() => {
     loadFeeStructure();
-  }, []);
+  }, [activeCenterId]);
 
   // Update customInvoiceAmount automatically when selected fee type changes
   React.useEffect(() => {
@@ -144,7 +170,7 @@ export default function CenterAdminView({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          centerId: "C001",
+          centerId: activeCenterId,
           registrationFee: Number(registrationFeeInput),
           levelFee: Number(levelFeeInput),
           examFee: Number(examFeeInput),
@@ -199,7 +225,7 @@ export default function CenterAdminView({
         amount: Number(customInvoiceAmount),
         discount: Number(studentDiscountInput) || 0,
         feeType: feeTypeName,
-        centerId: "C001"
+        centerId: activeCenterId
       };
 
       const result = await onAddFee(payload);
@@ -246,6 +272,23 @@ export default function CenterAdminView({
   const [sSchool, setSSchool] = useState("");
   const [sLevel, setSLevel] = useState(1);
   const [sBatch, setSBatch] = useState("Sat 10:00 AM");
+  const [sTeacherId, setSTeacherId] = useState("T001");
+
+  // Center Payment Configurations States
+  const [upiId, setUpiId] = useState("");
+  const [bankDetails, setBankDetails] = useState("");
+  const [qrCode, setQrCode] = useState("");
+  const [paymentSaving, setPaymentSaving] = useState(false);
+  const [notificationSending, setNotificationSending] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    const centerObj = (centers || []).find(c => c.id === activeCenterId);
+    if (centerObj) {
+      setUpiId(centerObj.upiId || "");
+      setBankDetails(centerObj.bankDetails || "");
+      setQrCode(centerObj.qrCode || "");
+    }
+  }, [centers, activeCenterId]);
 
   const [eCategory, setECategory] = useState<any>("Miscellaneous");
   const [eAmount, setEAmount] = useState<number>(0);
@@ -254,12 +297,12 @@ export default function CenterAdminView({
   const handleCreateTeacher = (e: React.FormEvent) => {
     e.preventDefault();
     if (!tName) return;
-    const payload = { centerId: "C001", name: tName, email: tEmail, mobile: tMobile, role: tRole };
+    const payload = { centerId: activeCenterId, name: tName, email: tEmail, mobile: tMobile, role: tRole };
     onAddTeacher(payload);
 
     const newT: Teacher = {
       id: `T00${teachers.length + 10}`,
-      centerId: "C001",
+      centerId: activeCenterId,
       name: tName,
       email: tEmail,
       mobile: tMobile,
@@ -275,8 +318,8 @@ export default function CenterAdminView({
     e.preventDefault();
     if (!sName) return;
     const payload = {
-      centerId: "C001",
-      teacherId: "T001",
+      centerId: activeCenterId,
+      teacherId: sTeacherId || "T001",
       studentName: sName,
       parentName: sParent,
       parentMobile: sMobile,
@@ -289,8 +332,8 @@ export default function CenterAdminView({
 
     const newS: Student = {
       id: `S00${students.length + 10}`,
-      centerId: "C001",
-      teacherId: "T001",
+      centerId: activeCenterId,
+      teacherId: sTeacherId || "T001",
       studentName: sName,
       parentName: sParent,
       parentMobile: sMobile,
@@ -309,12 +352,12 @@ export default function CenterAdminView({
   const handleCreateExpense = (e: React.FormEvent) => {
     e.preventDefault();
     if (!eAmount) return;
-    const payload = { centerId: "C001", category: eCategory, amount: eAmount, date: new Date().toISOString().split("T")[0], description: eDesc };
+    const payload = { centerId: activeCenterId, category: eCategory, amount: eAmount, date: new Date().toISOString().split("T")[0], description: eDesc };
     onAddExpense(payload);
 
     const newE: ExpenseRecord = {
       id: `E00${expenses.length + 10}`,
-      centerId: "C001",
+      centerId: activeCenterId,
       category: eCategory,
       amount: eAmount,
       date: new Date().toISOString().split("T")[0],
@@ -350,6 +393,131 @@ export default function CenterAdminView({
       }
     } catch (err: any) {
       alert("Error: " + err.message);
+    }
+  };
+
+  const handleAssignTeacher = async (studentId: string, teacherId: string) => {
+    try {
+      const res = await fetch("/api/erp/update-student-teacher", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ studentId, teacherId })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setStudents(prev => prev.map(s => s.id === studentId ? { ...s, teacherId } : s));
+      } else {
+        alert("Failed to assign teacher: " + data.error);
+      }
+    } catch (e) {
+      console.error("Failed to assign teacher", e);
+    }
+  };
+
+  const handleAssignTeacherRole = async (teacherId: string, role: string) => {
+    try {
+      const res = await fetch("/api/erp/update-teacher-role", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ teacherId, role })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setTeachers(prev => prev.map(t => t.id === teacherId ? { ...t, role } : t));
+        alert(`Success! Updated designation/role for the selected instructor.`);
+      } else {
+        alert("Failed to update teacher role: " + data.error);
+      }
+    } catch (e) {
+      console.error("Failed updating teacher role", e);
+    }
+  };
+
+  const handleDeleteTeacher = async (teacherId: string, teacherName: string) => {
+    if (!confirm(`Are you absolutely sure you want to remove ${teacherName} from your academy's staff roster?`)) {
+      return;
+    }
+    try {
+      const res = await fetch("/api/erp/delete-teacher", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ teacherId })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setTeachers(prev => prev.filter(t => t.id !== teacherId));
+        alert("Teacher removed successfully.");
+      } else {
+        alert("Failed to remove teacher: " + data.error);
+      }
+    } catch (err) {
+      console.error(err);
+      alert("A network error occurred.");
+    }
+  };
+
+  const handleSendInAppReminder = async (studentId: string, studentName: string, amount: number, currentLevel: number) => {
+    setNotificationSending(studentId);
+    try {
+      const res = await fetch("/api/erp/send-student-notification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          studentId,
+          title: "Tuition Fee Outstanding Reminder",
+          message: `Dear Parent, please note that ₹${amount} is outstanding for Level ${currentLevel} tuition fees. Kindly pay via UPI / Bank and submit proof.`,
+          type: "payment"
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(`Success! In-app notification reminder sent to ${studentName}'s parent dashboard.`);
+      } else {
+        alert("Failed to send notification: " + data.error);
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Error sending notification");
+    } finally {
+      setNotificationSending(null);
+    }
+  };
+
+  const handleSavePaymentSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPaymentSaving(true);
+    try {
+      const res = await fetch("/api/erp/update-payment-details", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          centerId: activeCenterId,
+          upiId,
+          bankDetails,
+          qrCode
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert("Payment settings (UPI, Bank details, QR code) successfully updated and published to student dashboards!");
+      } else {
+        alert("Failed to save payment settings: " + data.error);
+      }
+    } catch (err: any) {
+      alert("Error saving settings: " + err.message);
+    } finally {
+      setPaymentSaving(false);
+    }
+  };
+
+  const handleQrCodeUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setQrCode(reader.result as string);
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -437,10 +605,10 @@ export default function CenterAdminView({
             Authorized Franchise Controller
           </span>
           <h2 className="text-xl md:text-2xl font-black font-display mt-2">
-            Welcome back, Rajesh Kumar! 👋
+            Welcome back, {activeCenterOwner}! 👋
           </h2>
           <p className="text-xs text-indigo-300 mt-1">
-            Center Principal Head • Geniplus Bangalore East Franchise Branch
+            Center Principal Head • {activeCenterName} Franchise Branch
           </p>
         </div>
         <button
@@ -504,7 +672,8 @@ export default function CenterAdminView({
             { id: "Fees", label: "Tuition Fees Ledger", icon: CreditCard },
             { id: "FeeSetup", label: "Fee Settings", icon: Settings },
             { id: "Expenses", label: "Operating Expenses", icon: Landmark },
-            { id: "PnL", label: "Interactive Center P&L", icon: Calculator }
+            { id: "PnL", label: "Interactive Center P&L", icon: Calculator },
+            { id: "CRM", label: "AI Marketing & CRM", icon: Sparkles }
           ].map((tab) => {
             const Icon = tab.icon;
             const isSelected = subTab === tab.id;
@@ -577,9 +746,19 @@ export default function CenterAdminView({
                       <input type="text" value={sBatch} onChange={(e) => setSBatch(e.target.value)} className="w-full bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-medium" />
                     </div>
                   </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold text-gray-600 mb-1">School Affiliation</label>
-                    <input type="text" value={sSchool} onChange={(e) => setSSchool(e.target.value)} className="w-full bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-medium" />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-gray-600 mb-1">School Affiliation</label>
+                      <input type="text" value={sSchool} onChange={(e) => setSSchool(e.target.value)} className="w-full bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-medium" />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-gray-600 mb-1">Assign Class Teacher</label>
+                      <select value={sTeacherId} onChange={(e) => setSTeacherId(e.target.value)} className="w-full bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-xs font-medium">
+                        {teachers.map(t => (
+                          <option key={t.id} value={t.id}>{t.name} ({t.role})</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                   <div className="flex justify-end gap-2 pt-2">
                     <button type="button" onClick={() => setShowAddStudent(false)} className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700">Cancel</button>
@@ -598,6 +777,7 @@ export default function CenterAdminView({
                       <th className="p-3">Level</th>
                       <th className="p-3">Batch</th>
                       <th className="p-3">Joined</th>
+                      <th className="p-3">Assigned Instructor</th>
                       <th className="p-3">Status</th>
                     </tr>
                   </thead>
@@ -613,7 +793,27 @@ export default function CenterAdminView({
                         <td className="p-3"><span className="bg-indigo-50 border border-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded-lg">Level {s.currentLevel}</span></td>
                         <td className="p-3 font-medium">{s.batch}</td>
                         <td className="p-3 font-mono text-gray-400">{s.joiningDate}</td>
-                        <td className="p-3"><span className="text-emerald-700 font-semibold">{s.status}</span></td>
+                        <td className="p-3">
+                          <select
+                            value={s.teacherId || ""}
+                            onChange={(e) => handleAssignTeacher(s.id, e.target.value)}
+                            className="bg-slate-50 hover:bg-white border border-slate-200 rounded-lg py-1 px-2 text-[11px] font-semibold text-slate-800 outline-none"
+                          >
+                            <option value="">-- Unassigned --</option>
+                            {teachers.map(t => (
+                              <option key={t.id} value={t.id}>{t.name} ({t.role})</option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="p-3">
+                          <span className={`px-2 py-0.5 rounded text-[11px] font-bold ${
+                            s.status === "Inactive"
+                              ? "bg-rose-50 text-rose-700 border border-rose-200"
+                              : "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                          }`}>
+                            {s.status || "Active"}
+                          </span>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -661,6 +861,8 @@ export default function CenterAdminView({
                         <option value="Senior Abacus Trainer">Senior Abacus Trainer</option>
                         <option value="Junior Teacher">Junior Teacher</option>
                         <option value="Head Coach">Head Coach</option>
+                        <option value="Marketing & Sales Staff">Marketing & Sales Staff</option>
+                        <option value="Teacher & Marketing Representative">Teacher & Marketing Representative</option>
                       </select>
                     </div>
                   </div>
@@ -682,6 +884,7 @@ export default function CenterAdminView({
                       <th className="p-3">Designation</th>
                       <th className="p-3">Joined Date</th>
                       <th className="p-3">Status</th>
+                      <th className="p-3 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
@@ -691,9 +894,31 @@ export default function CenterAdminView({
                         <td className="p-3 font-semibold text-gray-900">{t.name}</td>
                         <td className="p-3 font-mono text-indigo-600">{t.email}</td>
                         <td className="p-3 font-medium">{t.mobile}</td>
-                        <td className="p-3 font-semibold">{t.role}</td>
+                        <td className="p-3">
+                          <select
+                            value={t.role || ""}
+                            onChange={(e) => handleAssignTeacherRole(t.id, e.target.value)}
+                            className="bg-slate-50 hover:bg-white border border-slate-200 rounded-lg py-1 px-1.5 text-[11px] font-semibold text-slate-800 outline-none"
+                          >
+                            <option value="Senior Abacus Trainer">Senior Abacus Trainer</option>
+                            <option value="Junior Teacher">Junior Teacher</option>
+                            <option value="Head Coach">Head Coach</option>
+                            <option value="Marketing & Sales Staff">Marketing & Sales Staff</option>
+                            <option value="Teacher & Marketing Representative">Teacher & Marketing Representative</option>
+                          </select>
+                        </td>
                         <td className="p-3 font-mono text-gray-400">{t.joiningDate}</td>
                         <td className="p-3"><span className="text-emerald-700 font-semibold">{t.status}</span></td>
+                        <td className="p-3 text-right">
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteTeacher(t.id, t.name)}
+                            className="text-rose-600 hover:text-rose-800 hover:bg-rose-50 p-1.5 rounded-lg transition-colors active:scale-95"
+                            title="Remove Staff / Instructor"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -849,16 +1074,34 @@ export default function CenterAdminView({
                                 {unpaidInvoices.length} outstanding bill{unpaidInvoices.length > 1 ? "s" : ""} • L{s.currentLevel}
                               </div>
                             </div>
-                            <div className="text-right">
+                            <div className="text-right space-y-1">
                               <div className="font-black text-rose-600 font-mono">₹{totalDue}</div>
-                              <button
-                                onClick={() => {
-                                  alert(`Prompt Reminder for ${s.studentName}:\nParent Name: ${s.parentName}\nMobile: ${s.parentMobile}\nTotal Unpaid Dues: ₹${totalDue}`);
-                                }}
-                                className="text-[9px] text-indigo-600 hover:underline font-bold font-mono"
-                              >
-                                Contact Parent
-                              </button>
+                              <div className="flex items-center gap-1.5 justify-end">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const parentMobileClean = s.parentMobile.replace(/\s+/g, "").replace(/-/g, "").replace(/\+/g, "");
+                                    const messageText = `Dear Parent, this is My Abacus Academy. Please note that Level ${s.currentLevel} tuition fee of ₹${totalDue} is currently due for ${s.studentName}. Kindly make payment via UPI or use your student dashboard to scan the QR code. Thank you!`;
+                                    const whatsappUrl = `https://api.whatsapp.com/send?phone=${parentMobileClean}&text=${encodeURIComponent(messageText)}`;
+                                    window.open(whatsappUrl, "_blank");
+                                  }}
+                                  className="text-[10px] text-emerald-600 hover:text-emerald-700 font-bold flex items-center gap-0.5 bg-slate-50 border border-slate-100 rounded-sm py-0.5 px-1"
+                                  title="WhatsApp Reminder"
+                                >
+                                  <MessageSquare className="w-3 h-3" />
+                                  <span>WhatsApp</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={notificationSending === s.id}
+                                  onClick={() => handleSendInAppReminder(s.id, s.studentName, totalDue, s.currentLevel)}
+                                  className="text-[10px] text-indigo-600 hover:text-indigo-700 disabled:opacity-50 font-bold flex items-center gap-0.5 bg-slate-50 border border-slate-100 rounded-sm py-0.5 px-1"
+                                  title="Send In-App Msg"
+                                >
+                                  <Send className="w-3 h-3" />
+                                  <span>{notificationSending === s.id ? "..." : "In-App"}</span>
+                                </button>
+                              </div>
                             </div>
                           </div>
                         );
@@ -1195,6 +1438,84 @@ export default function CenterAdminView({
                   </div>
                 </div>
               </form>
+
+              {/* Center UPI & Bank Payment Options Settings */}
+              <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4">
+                <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
+                  <Landmark className="w-4 h-4 text-emerald-600" />
+                  <h5 className="text-xs font-black text-slate-900 uppercase tracking-wider font-display">
+                    My Abacus Academy Payment Settings (Student Dashboard Display)
+                  </h5>
+                </div>
+
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  Provide your official school bank transfer details, UPI ID, and upload an image of your QR Code. Enrolled students and their parents will instantly see these details inside their parent dashboard to submit tuition payments.
+                </p>
+
+                <form onSubmit={handleSavePaymentSettings} className="space-y-4 pt-2">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1">Official UPI ID (e.g. abacus@upi)</label>
+                        <input
+                          type="text"
+                          required
+                          value={upiId}
+                          onChange={(e) => setUpiId(e.target.value)}
+                          placeholder="academy@okhdfcbank"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-medium focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1">Bank Wire details (Bank Name, Acc No, IFSC Code)</label>
+                        <textarea
+                          required
+                          value={bankDetails}
+                          onChange={(e) => setBankDetails(e.target.value)}
+                          rows={4}
+                          placeholder="Bank: HDFC Bank&#10;Account Holder: My Abacus Academy&#10;Account No: 5010023456789&#10;IFSC Code: HDFC0001234"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-medium focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">QR Code Payment Graphic Image</label>
+                      <div className="border-2 border-dashed border-slate-200 hover:border-indigo-400 rounded-xl p-4 text-center transition-colors relative bg-slate-50">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleQrCodeUpload}
+                          className="absolute inset-0 opacity-0 cursor-pointer"
+                        />
+                        {qrCode ? (
+                          <div className="space-y-2">
+                            <img src={qrCode} alt="Uploaded QR Code" className="h-28 mx-auto object-contain rounded" referrerPolicy="no-referrer" />
+                            <div className="text-[10px] text-emerald-600 font-bold">✓ QR code image loaded. Click to replace.</div>
+                          </div>
+                        ) : (
+                          <div className="space-y-1.5 py-4">
+                            <Image className="w-8 h-8 text-slate-400 mx-auto" />
+                            <div className="text-xs text-slate-600 font-semibold">Drag or browse school payment QR Code image</div>
+                            <div className="text-[9px] text-slate-400">Supports PNG, JPG, JPEG (automatically saved)</div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                    <button
+                      type="submit"
+                      disabled={paymentSaving}
+                      className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-md transition-all active:scale-[0.98] disabled:opacity-50"
+                    >
+                      {paymentSaving ? "Saving Settings..." : "Publish Payment Settings & QR Code"}
+                    </button>
+                  </div>
+                </form>
+              </div>
             </div>
           )}
 
@@ -1335,6 +1656,13 @@ export default function CenterAdminView({
                 </div>
 
               </div>
+            </div>
+          )}
+
+          {/* CRM SUB-TAB */}
+          {subTab === "CRM" && (
+            <div className="space-y-4 animate-fade-in">
+              <CrmView leads={leads} onAddLead={onAddLead} />
             </div>
           )}
 

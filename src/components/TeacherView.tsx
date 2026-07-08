@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { Student, AttendanceRecord, HomeworkRecord, ExamRecord, Teacher, FeeRecord } from "../types";
-import { Sparkles, CalendarCheck, BookOpen, GraduationCap, CheckCircle2, FileText, Award, HelpCircle, Loader2, Target, Trophy, Send, TrendingUp, Key, UserPlus, RefreshCw, LogOut, ChevronRight, Search, AlertTriangle, Clock, ArrowUpRight, Check } from "lucide-react";
+import { Student, AttendanceRecord, HomeworkRecord, ExamRecord, Teacher, FeeRecord, Center, CRMLead } from "../types";
+import { Sparkles, CalendarCheck, BookOpen, GraduationCap, CheckCircle2, FileText, Award, HelpCircle, Loader2, Target, Trophy, Send, TrendingUp, Key, UserPlus, RefreshCw, LogOut, ChevronRight, Search, AlertTriangle, Clock, ArrowUpRight, Check, Star, Users, MapPin, MessageSquare } from "lucide-react";
+import CrmView from "./CrmView";
 
 interface TeacherViewProps {
   teachers?: Teacher[];
@@ -12,9 +13,27 @@ interface TeacherViewProps {
   onMarkAttendance: (records: any[]) => void;
   onPayFee: (feeId: string) => void;
   onAddStudent: (payload: any) => Promise<void>;
+  centers?: Center[];
+  leads?: CRMLead[];
+  onAddLead?: (lead: Partial<CRMLead>) => void;
+  onRefreshData?: () => Promise<void>;
 }
 
-export default function TeacherView({ teachers = [], students, fees = [], attendance, homework, exams, onMarkAttendance, onAddStudent }: TeacherViewProps) {
+export default function TeacherView({
+  teachers = [],
+  students,
+  fees = [],
+  attendance,
+  homework,
+  exams,
+  onMarkAttendance,
+  onPayFee,
+  onAddStudent,
+  centers = [],
+  leads = [],
+  onAddLead = () => {},
+  onRefreshData
+}: TeacherViewProps) {
   // Teacher credentials state
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
     return localStorage.getItem("teacher_is_logged_in") === "true";
@@ -29,8 +48,18 @@ export default function TeacherView({ teachers = [], students, fees = [], attend
   const [authLoading, setAuthLoading] = useState(false);
 
   // Match the active logged in instructor
-  const currentTeacher = teachers.find(t => t.id === loggedInTeacherId) || teachers[0] || { id: "T001", centerId: "C001", name: "Sunitha Rao", email: "sunitha@geniplus.com" };
+  const currentTeacher = (teachers.find(t => t.id === loggedInTeacherId) || teachers[0] || { id: "T001", centerId: "C001", name: "Sunitha Rao", email: "sunitha@geniplus.com", role: "Trainer" }) as Teacher;
   const teacherStudents = students.filter(s => s.teacherId === currentTeacher.id);
+
+  // Academy student list and top student calculations
+  const academyStudents = students.filter(s => s.centerId === currentTeacher.centerId);
+  const getAcademyTopStudent = () => {
+    if (!academyStudents || academyStudents.length === 0) return null;
+    const sorted = [...academyStudents].sort((a, b) => b.currentLevel - a.currentLevel);
+    return sorted[0];
+  };
+  const academyTopStudent = getAcademyTopStudent();
+  const academyName = centers.find(c => c.id === currentTeacher.centerId)?.name || "My Abacus Academy Center";
 
   // Practice & Accuracy Manager States
   const [practiceAssignments, setPracticeAssignments] = useState<any[]>([]);
@@ -472,6 +501,58 @@ export default function TeacherView({ teachers = [], students, fees = [], attend
     setPasswordInput("");
   };
 
+  const handleUpdateStudentStatus = async (studentId: string, status: string) => {
+    try {
+      const res = await fetch("/api/erp/update-student-status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ studentId, status })
+      });
+      const data = await res.json();
+      if (data.success) {
+        if (onRefreshData) {
+          await onRefreshData();
+        } else {
+          window.location.reload();
+        }
+      } else {
+        alert("Failed to update student status: " + data.error);
+      }
+    } catch (err) {
+      console.error("Error updating student status:", err);
+      alert("A network error occurred while updating the status.");
+    }
+  };
+
+  const [notificationSending, setNotificationSending] = useState<string | null>(null);
+
+  const handleSendInAppReminder = async (studentId: string, studentName: string, amount: number, currentLevel: number) => {
+    setNotificationSending(studentId);
+    try {
+      const res = await fetch("/api/erp/send-student-notification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          studentId,
+          title: "Tuition Fee Outstanding Reminder",
+          message: `Dear Parent, please note that ₹${amount} is outstanding for Level ${currentLevel} tuition fees. Kindly pay via UPI / Bank and submit proof.`,
+          type: "payment"
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(`Success! In-app notification reminder sent to ${studentName}'s parent dashboard.`);
+      } else {
+        alert("Failed to send notification: " + data.error);
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Error sending notification");
+    } finally {
+      setNotificationSending(null);
+    }
+  };
+
   if (!isLoggedIn) {
     return (
       <div className="max-w-md mx-auto my-12 bg-white rounded-3xl border-2 border-slate-100 p-8 shadow-xl text-center space-y-6 animate-fade-in" id="teacher-login-card">
@@ -571,7 +652,7 @@ export default function TeacherView({ teachers = [], students, fees = [], attend
             Welcome back, {currentTeacher.name}! 👋
           </h2>
           <p className="text-xs text-indigo-300 mt-1">
-            Senior Arithmetic Trainer • Bangalore East Center Office • Email: {currentTeacher.email}
+            Senior Arithmetic Trainer • {academyName} • Email: {currentTeacher.email}
           </p>
         </div>
         <button
@@ -581,6 +662,44 @@ export default function TeacherView({ teachers = [], students, fees = [], attend
           <LogOut className="w-3.5 h-3.5" />
           <span>Sign Out / Lock Portal</span>
         </button>
+      </div>
+
+      {/* Teacher & Academy Metrics Highlights */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs">
+          <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">My Assigned Roster</div>
+          <div className="text-2xl font-black text-indigo-950 mt-1 font-display">{teacherStudents.length} Students</div>
+          <div className="text-[10px] text-slate-500 mt-1 flex items-center gap-1">
+            <Users className="w-3.5 h-3.5 text-indigo-500" />
+            <span>Directly assigned to you</span>
+          </div>
+        </div>
+
+        <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs">
+          <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Academy Enrollment</div>
+          <div className="text-2xl font-black text-emerald-600 mt-1 font-display">{academyStudents.length} Students</div>
+          <div className="text-[10px] text-slate-500 mt-1 flex items-center gap-1">
+            <MapPin className="w-3.5 h-3.5 text-emerald-500" />
+            <span className="truncate">{academyName}</span>
+          </div>
+        </div>
+
+        <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs col-span-2">
+          <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Academy Top Performer ⭐</div>
+          {academyTopStudent ? (
+            <div className="flex items-center gap-2.5 mt-1">
+              <div className="w-9 h-9 rounded-full bg-amber-100 border border-amber-200 text-amber-600 flex items-center justify-center font-black text-xs shrink-0 animate-bounce">
+                L{academyTopStudent.currentLevel}
+              </div>
+              <div className="min-w-0">
+                <div className="text-sm font-black text-indigo-950 truncate">{academyTopStudent.studentName}</div>
+                <div className="text-[10px] text-slate-400 truncate">Outstanding milestones inside {academyName}</div>
+              </div>
+            </div>
+          ) : (
+            <div className="text-xs text-slate-400 mt-2 italic">No active top student recorded in this center.</div>
+          )}
+        </div>
       </div>
 
       {/* SECTION: Persistent Student Search & Level Pacing Tracker */}
@@ -776,15 +895,29 @@ export default function TeacherView({ teachers = [], students, fees = [], attend
                   <div>
                     <div className="flex justify-between items-start">
                       <div>
-                        <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-[9px] font-mono font-bold tracking-wide">
-                          {student.id}
-                        </span>
-                        {!isMyStudent && (
-                          <span className="ml-1.5 bg-slate-200 text-slate-700 px-2 py-0.5 rounded text-[9px] font-bold">
-                            Other Class
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-[9px] font-mono font-bold tracking-wide">
+                            {student.id}
                           </span>
-                        )}
-                        <h4 className="text-sm font-extrabold text-indigo-950 font-display mt-1">
+                          {!isMyStudent && (
+                            <span className="bg-slate-200 text-slate-700 px-2 py-0.5 rounded text-[9px] font-bold">
+                              Other Class
+                            </span>
+                          )}
+                          <select
+                            value={student.status || "Active"}
+                            onChange={(e) => handleUpdateStudentStatus(student.id, e.target.value)}
+                            className={`border-0 rounded text-[9px] font-black uppercase focus:ring-1 focus:ring-indigo-500 cursor-pointer py-0.5 px-1.5 outline-none transition-colors ${
+                              (student.status || "Active") === "Active"
+                                ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200"
+                                : "bg-rose-100 text-rose-800 hover:bg-rose-200"
+                            }`}
+                          >
+                            <option value="Active">Active</option>
+                            <option value="Inactive">Inactive</option>
+                          </select>
+                        </div>
+                        <h4 className="text-sm font-extrabold text-indigo-950 font-display mt-1.5">
                           {student.studentName}
                         </h4>
                       </div>
@@ -859,9 +992,35 @@ export default function TeacherView({ teachers = [], students, fees = [], attend
                     </div>
 
                     {stats.unpaidAmount > 0 && (
-                      <div className="bg-rose-50 border border-rose-100/60 rounded-xl px-2.5 py-1.5 text-[10px] text-rose-700 font-bold flex justify-between items-center">
-                        <span>Outstanding Fees:</span>
-                        <span className="text-rose-800 font-mono">₹{stats.unpaidAmount} Unpaid</span>
+                      <div className="space-y-2">
+                        <div className="bg-rose-50 border border-rose-100/60 rounded-xl px-2.5 py-1.5 text-[10px] text-rose-700 font-bold flex justify-between items-center">
+                          <span>Outstanding Fees:</span>
+                          <span className="text-rose-800 font-mono">₹{stats.unpaidAmount} Unpaid</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const parentMobileClean = student.parentMobile.replace(/\s+/g, "").replace(/-/g, "").replace(/\+/g, "");
+                              const messageText = `Dear Parent, this is My Abacus Academy. Please note that Level ${student.currentLevel} tuition fee of ₹${stats.unpaidAmount} is currently due for ${student.studentName}. Kindly make payment via UPI ID or use your student dashboard to scan the QR code. Thank you!`;
+                              const whatsappUrl = `https://api.whatsapp.com/send?phone=${parentMobileClean}&text=${encodeURIComponent(messageText)}`;
+                              window.open(whatsappUrl, "_blank");
+                            }}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[10px] py-1.5 px-2 rounded-xl flex items-center justify-center gap-1 transition-colors active:scale-95"
+                          >
+                            <MessageSquare className="w-3 h-3" />
+                            <span>WhatsApp</span>
+                          </button>
+                          <button
+                            type="button"
+                            disabled={notificationSending === student.id}
+                            onClick={() => handleSendInAppReminder(student.id, student.studentName, stats.unpaidAmount, student.currentLevel)}
+                            className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-extrabold text-[10px] py-1.5 px-2 rounded-xl flex items-center justify-center gap-1 transition-colors active:scale-95"
+                          >
+                            <Send className="w-3 h-3" />
+                            <span>{notificationSending === student.id ? "Sending..." : "In-App Msg"}</span>
+                          </button>
+                        </div>
                       </div>
                     )}
 
@@ -1765,6 +1924,20 @@ export default function TeacherView({ teachers = [], students, fees = [], attend
         </div>
 
       </div>
+
+      {/* AI Marketing & CRM for authorized marketing staff */}
+      {(currentTeacher.role?.toLowerCase().includes("marketing") || currentTeacher.role?.toLowerCase().includes("sales")) && (
+        <div className="bg-white rounded-3xl border-2 border-slate-100 p-6 shadow-sm space-y-4">
+          <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+            <Sparkles className="w-5 h-5 text-indigo-600" />
+            <div>
+              <h3 className="text-base font-black text-indigo-900 font-display">Authorized AI Marketing & CRM Portal</h3>
+              <p className="text-xs text-slate-500">Since you have been assigned an administrative Marketing / Sales role by your Center Admin, you have full access to draft AI campaigns, track inquiry pipelines, and register parent leads.</p>
+            </div>
+          </div>
+          <CrmView leads={leads} onAddLead={onAddLead} />
+        </div>
+      )}
 
     </div>
   );
