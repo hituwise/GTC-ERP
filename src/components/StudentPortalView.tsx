@@ -57,6 +57,7 @@ export default function StudentPortalView({ students, onRefreshData, centers = [
     rows: number;
     teacherFocus?: string;
     isSelfPractice: boolean;
+    customSums?: { expression: string; answer: number; rows?: number[] }[] | null;
   } | null>(null);
 
   // Dynamic Equation State
@@ -259,9 +260,7 @@ export default function StudentPortalView({ students, onRefreshData, centers = [
         answer: quotient
       };
     }
-  };
-
-  // Start a Practice Session
+  };  // Start a Practice Session
   const handleStartPractice = (
     title: string,
     type: "Addition" | "Subtraction" | "Multiplication" | "Division",
@@ -270,21 +269,24 @@ export default function StudentPortalView({ students, onRefreshData, centers = [
     rows: number,
     isSelf: boolean,
     assignmentId?: string,
-    teacherFocus?: string
+    teacherFocus?: string,
+    customSums?: any[] | null
   ) => {
+    const finalTotal = customSums && customSums.length > 0 ? customSums.length : totalSums;
     setActivePractice({
       id: assignmentId,
       title,
       type,
-      totalSums,
+      totalSums: finalTotal,
       completed: 0,
       digits,
       rows,
       teacherFocus,
-      isSelfPractice: isSelf
+      isSelfPractice: isSelf,
+      customSums: customSums || null
     });
     setStarsEarnedSession(0);
-    const q = generateEquation(type, digits, rows);
+    const q = customSums && customSums.length > 0 ? customSums[0] : generateEquation(type, digits, rows);
     setCurrentQuestion(q);
     setStudentAnswer("");
     setQuestionFeedback({ status: "idle", message: "Answer ready. Visualize beads!" });
@@ -342,7 +344,9 @@ export default function StudentPortalView({ students, onRefreshData, centers = [
           alert(`Congratulations! You completed your "${activePractice.title}" practice and earned ${finalStars} Stars! ⭐`);
         } else {
           setActivePractice(prev => prev ? { ...prev, completed: nextCompleted } : null);
-          const nextQ = generateEquation(activePractice.type, activePractice.digits, activePractice.rows);
+          const nextQ = activePractice.customSums && activePractice.customSums.length > nextCompleted
+            ? activePractice.customSums[nextCompleted]
+            : generateEquation(activePractice.type, activePractice.digits, activePractice.rows);
           setCurrentQuestion(nextQ);
           setStudentAnswer("");
           setQuestionFeedback({ status: "idle", message: "Fresh round ready." });
@@ -360,7 +364,10 @@ export default function StudentPortalView({ students, onRefreshData, centers = [
 
   const handleSkipQuestion = () => {
     if (!activePractice) return;
-    const nextQ = generateEquation(activePractice.type, activePractice.digits, activePractice.rows);
+    const nextCompleted = activePractice.completed;
+    const nextQ = activePractice.customSums && activePractice.customSums.length > nextCompleted
+      ? activePractice.customSums[nextCompleted]
+      : generateEquation(activePractice.type, activePractice.digits, activePractice.rows);
     setCurrentQuestion(nextQ);
     setStudentAnswer("");
     setQuestionFeedback({ status: "idle", message: "Skipped. Try this one!" });
@@ -808,7 +815,8 @@ export default function StudentPortalView({ students, onRefreshData, centers = [
                           assign.rows,
                           false,
                           assign.id,
-                          assign.teacherFocus
+                          assign.teacherFocus,
+                          assign.customSums
                         )}
                         className="bg-indigo-600 text-white font-bold text-[11px] px-3.5 py-2 rounded-xl hover:bg-indigo-700 transition-all active:scale-95 shadow-sm"
                       >

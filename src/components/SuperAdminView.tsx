@@ -21,6 +21,8 @@ export default function SuperAdminView({ centers: initialCenters, onAddCenter, s
   const [editMobile, setEditMobile] = useState("");
   const [editPlan, setEditPlan] = useState("");
   const [editPassword, setEditPassword] = useState("");
+  const [editCustomPrice, setEditCustomPrice] = useState("");
+  const [editAddresses, setEditAddresses] = useState<string[]>([]);
   const [editSaving, setEditSaving] = useState(false);
 
   // Copy Password Feedback
@@ -39,6 +41,8 @@ export default function SuperAdminView({ centers: initialCenters, onAddCenter, s
   const [cCity, setCCity] = useState("");
   const [cState, setCState] = useState("");
   const [cPlan, setCPlan] = useState("Standard");
+  const [cCustomPrice, setCCustomPrice] = useState("");
+  const [cAddresses, setCAddresses] = useState<string[]>([""]);
 
   // Form Fields for Subscription / Trial manager
   const [subCenterId, setSubCenterId] = useState("");
@@ -140,6 +144,8 @@ export default function SuperAdminView({ centers: initialCenters, onAddCenter, s
       city: cCity,
       state: cState,
       plan: cPlan,
+      customPrice: (cPlan === "Custom Plan" || cPlan === "Custom") ? Number(cCustomPrice) || 0 : undefined,
+      addresses: cAddresses.filter(addr => addr.trim() !== ""),
       subscriptionExpiry: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
     };
 
@@ -155,6 +161,8 @@ export default function SuperAdminView({ centers: initialCenters, onAddCenter, s
       state: cState,
       country: "India",
       plan: cPlan,
+      customPrice: payload.customPrice,
+      addresses: payload.addresses,
       subscriptionStart: new Date().toISOString().split("T")[0],
       subscriptionExpiry: payload.subscriptionExpiry,
       status: "Active"
@@ -162,6 +170,7 @@ export default function SuperAdminView({ centers: initialCenters, onAddCenter, s
 
     setCenters([...centers, newC]);
     setCName(""); setCOwner(""); setCEmail(""); setCMobile(""); setCCity(""); setCState("");
+    setCCustomPrice(""); setCAddresses([""]);
     setShowAddCenter(false);
   };
 
@@ -173,6 +182,8 @@ export default function SuperAdminView({ centers: initialCenters, onAddCenter, s
     setEditMobile(center.mobile);
     setEditPlan(center.plan);
     setEditPassword(center.password || "password123");
+    setEditCustomPrice(center.customPrice !== undefined ? String(center.customPrice) : "");
+    setEditAddresses(center.addresses || [""]);
   };
 
   const handleSaveEdit = async (e: React.FormEvent) => {
@@ -191,7 +202,9 @@ export default function SuperAdminView({ centers: initialCenters, onAddCenter, s
           mobile: editMobile,
           plan: editPlan,
           password: editPassword,
-          status: editingCenter.status
+          status: editingCenter.status,
+          customPrice: (editPlan === "Custom Plan" || editPlan === "Custom") ? Number(editCustomPrice) || 0 : undefined,
+          addresses: editAddresses.filter(addr => addr.trim() !== "")
         })
       });
       const data = await res.json();
@@ -204,7 +217,9 @@ export default function SuperAdminView({ centers: initialCenters, onAddCenter, s
           email: editEmail,
           mobile: editMobile,
           plan: editPlan,
-          password: editPassword
+          password: editPassword,
+          customPrice: (editPlan === "Custom Plan" || editPlan === "Custom") ? Number(editCustomPrice) || 0 : undefined,
+          addresses: editAddresses.filter(addr => addr.trim() !== "")
         } : c));
         setEditingCenter(null);
       } else {
@@ -284,7 +299,11 @@ export default function SuperAdminView({ centers: initialCenters, onAddCenter, s
 
   // SaaS Revenue Calculations
   // 10 Students: ₹9999, 20 Students: ₹18999, 40 Students: ₹26999, 100 Students: ₹49999, Custom Plan
-  const getPlanPrice = (plan: string) => {
+  const getPlanPrice = (center: any) => {
+    if ((center.plan === "Custom Plan" || center.plan === "Custom") && typeof center.customPrice === "number") {
+      return center.customPrice;
+    }
+    const plan = center.plan;
     if (plan === "10 Students Plan" || plan === "10 Students") return 9999;
     if (plan === "20 Students Plan" || plan === "20 Students") return 18999;
     if (plan === "40 Students Plan" || plan === "40 Students") return 26999;
@@ -296,7 +315,7 @@ export default function SuperAdminView({ centers: initialCenters, onAddCenter, s
     return 20000;
   };
 
-  const totalSaaSArr = centers.filter(c => c.status === "Active").reduce((acc, curr) => acc + getPlanPrice(curr.plan), 0);
+  const totalSaaSArr = centers.filter(c => c.status === "Active").reduce((acc, curr) => acc + getPlanPrice(curr), 0);
 
   // Website-wide Student Metrics
   const totalPortalStudents = students.length;
@@ -568,6 +587,68 @@ export default function SuperAdminView({ centers: initialCenters, onAddCenter, s
                   <input type="text" value={cState} onChange={(e) => setCState(e.target.value)} className="w-full bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-medium" />
                 </div>
               </div>
+
+              {/* Optional Custom Plan Amount manual input */}
+              {(cPlan === "Custom Plan" || cPlan === "Custom") && (
+                <div className="bg-indigo-50/50 p-3 rounded-lg border border-indigo-150 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="flex-1">
+                    <label className="block text-[11px] font-extrabold text-indigo-900 mb-1 uppercase tracking-wider">Custom Plan Amount (INR/year)</label>
+                    <input
+                      type="number"
+                      required
+                      placeholder="e.g. 150000"
+                      value={cCustomPrice}
+                      onChange={(e) => setCCustomPrice(e.target.value)}
+                      className="w-full max-w-xs bg-white border border-indigo-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-indigo-950 focus:ring-1 focus:ring-indigo-500 outline-none"
+                    />
+                  </div>
+                  <div className="text-xs text-indigo-700 font-medium">
+                    ✨ <strong>Unlimited Plan</strong>: Centers registered with the Custom Plan can enroll an unlimited number of students and teachers without restriction.
+                  </div>
+                </div>
+              )}
+
+              {/* Multiple Center Addresses Option */}
+              <div className="bg-white border border-gray-150 p-4 rounded-xl space-y-3">
+                <div className="flex justify-between items-center">
+                  <div className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider">Multiple Address Locations / Branches</div>
+                  <button
+                    type="button"
+                    onClick={() => setCAddresses([...cAddresses, ""])}
+                    className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
+                  >
+                    + Add Branch Address
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {cAddresses.map((addr, idx) => (
+                    <div key={idx} className="flex gap-2 items-center">
+                      <span className="text-[10px] text-slate-400 font-mono w-6">#{idx+1}</span>
+                      <input
+                        type="text"
+                        placeholder="e.g. Ground Floor, East Wing, Bangalore"
+                        value={addr}
+                        onChange={(e) => {
+                          const updated = [...cAddresses];
+                          updated[idx] = e.target.value;
+                          setCAddresses(updated);
+                        }}
+                        className="flex-1 bg-gray-50/50 border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-medium focus:bg-white"
+                      />
+                      {cAddresses.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => setCAddresses(cAddresses.filter((_, i) => i !== idx))}
+                          className="text-red-500 hover:text-red-700 text-xs font-bold px-1"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               <div className="flex justify-end gap-2 pt-2">
                 <button type="button" onClick={() => setShowAddCenter(false)} className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700">Cancel</button>
                 <button type="submit" className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs">Register Tenant</button>
@@ -617,6 +698,27 @@ export default function SuperAdminView({ centers: initialCenters, onAddCenter, s
                       <div className="flex items-center gap-1.5">
                         <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                         <span>License Expires: <strong className="text-gray-600 font-mono">{center.subscriptionExpiry}</strong></span>
+                      </div>
+                    )}
+
+                    {(center.plan === "Custom Plan" || center.plan === "Custom") && typeof center.customPrice === "number" && (
+                      <div className="flex items-center gap-1.5 font-bold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-150 w-fit">
+                        <span>Custom Fee: ₹{center.customPrice.toLocaleString('en-IN')}/year</span>
+                        <span className="text-[9px] font-normal text-slate-500">(Unlimited Students & Teachers)</span>
+                      </div>
+                    )}
+
+                    {center.addresses && center.addresses.length > 0 && (
+                      <div className="mt-2.5 pt-2 border-t border-slate-150 space-y-1">
+                        <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider block">Addresses & Branches:</span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {center.addresses.map((addr, idx) => (
+                            <span key={idx} className="bg-white border border-slate-200 text-slate-700 text-[10px] px-2 py-1 rounded-md font-medium flex items-center gap-1 shadow-2xs">
+                              <span className="w-1.5 h-1.5 bg-indigo-600 rounded-full"></span>
+                              {addr}
+                            </span>
+                          ))}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -933,6 +1035,64 @@ export default function SuperAdminView({ centers: initialCenters, onAddCenter, s
                   <option value="100 Students Plan">100 Students (₹49,999/-)</option>
                   <option value="Custom Plan">Custom Plan (Per Requirements)</option>
                 </select>
+              </div>
+
+              {/* Optional Custom Plan Amount manual input for Edit */}
+              {(editPlan === "Custom Plan" || editPlan === "Custom") && (
+                <div className="bg-indigo-50/50 p-3 rounded-xl border border-indigo-100 space-y-1">
+                  <label className="block text-[10px] font-bold text-indigo-900 uppercase tracking-wider">Custom Plan Amount (INR/year)</label>
+                  <input
+                    type="number"
+                    required
+                    placeholder="e.g. 150000"
+                    value={editCustomPrice}
+                    onChange={(e) => setEditCustomPrice(e.target.value)}
+                    className="w-full bg-white border border-slate-200 rounded-xl p-3 text-xs font-semibold text-indigo-950 focus:ring-2 focus:ring-indigo-600 outline-none"
+                  />
+                  <div className="text-[9px] text-indigo-700 font-medium pt-1">
+                    ✨ Custom Plan grants unlimited teachers & students.
+                  </div>
+                </div>
+              )}
+
+              {/* Edit multiple addresses */}
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-150 space-y-2">
+                <div className="flex justify-between items-center">
+                  <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider">Center Addresses / Branches</label>
+                  <button
+                    type="button"
+                    onClick={() => setEditAddresses([...editAddresses, ""])}
+                    className="text-[9px] font-bold text-indigo-600 hover:text-indigo-800"
+                  >
+                    + Add Branch
+                  </button>
+                </div>
+                <div className="max-h-28 overflow-y-auto space-y-1.5 pr-1">
+                  {editAddresses.map((addr, idx) => (
+                    <div key={idx} className="flex gap-1.5 items-center">
+                      <input
+                        type="text"
+                        placeholder="Address branch location"
+                        value={addr}
+                        onChange={(e) => {
+                          const updated = [...editAddresses];
+                          updated[idx] = e.target.value;
+                          setEditAddresses(updated);
+                        }}
+                        className="flex-1 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-900 outline-none focus:ring-2 focus:ring-indigo-600"
+                      />
+                      {editAddresses.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => setEditAddresses(editAddresses.filter((_, i) => i !== idx))}
+                          className="text-red-500 hover:text-red-700 text-xs font-bold px-1"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
 
               <div>

@@ -2,6 +2,8 @@ import React, { useState, useEffect } from "react";
 import { Student, AttendanceRecord, HomeworkRecord, ExamRecord, Teacher, FeeRecord, Center, CRMLead } from "../types";
 import { Sparkles, CalendarCheck, BookOpen, GraduationCap, CheckCircle2, FileText, Award, HelpCircle, Loader2, Target, Trophy, Send, TrendingUp, Key, UserPlus, RefreshCw, LogOut, ChevronRight, Search, AlertTriangle, Clock, ArrowUpRight, Check, Star, Users, MapPin, MessageSquare } from "lucide-react";
 import CrmView from "./CrmView";
+import ConceptWorksheetManager from "./ConceptWorksheetManager";
+import PracticeGeneratorView from "./PracticeGeneratorView";
 
 interface TeacherViewProps {
   teachers?: Teacher[];
@@ -106,6 +108,7 @@ export default function TeacherView({
   // List of all active batches across this center to register or select from
   const [allBatches, setAllBatches] = useState<string[]>(["Sat 10:00 AM", "Sun 11:30 AM", "Sat 2:00 PM", "Wed 5:00 PM"]);
   const [newBatchName, setNewBatchName] = useState("");
+  const [activeSubTab, setActiveSubTab] = useState<"dashboard" | "worksheets">("dashboard");
 
   // Synchronize assignStudent with dynamic roster changes
   useEffect(() => {
@@ -664,8 +667,37 @@ export default function TeacherView({
         </button>
       </div>
 
-      {/* Teacher & Academy Metrics Highlights */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Navigation Sub-Tabs inside Teacher Portal */}
+      <div className="flex border-b border-slate-200 gap-2 print:hidden mb-4">
+        <button
+          onClick={() => setActiveSubTab("dashboard")}
+          className={`flex items-center gap-2 px-5 py-3 text-xs font-black transition-all rounded-t-2xl border-t-2 border-x-2 outline-none ${
+            activeSubTab === "dashboard"
+              ? "bg-white border-slate-200 border-b-transparent text-indigo-600 font-extrabold shadow-sm"
+              : "bg-slate-50/50 border-transparent text-slate-500 hover:text-slate-800"
+          }`}
+        >
+          <CalendarCheck className="w-4 h-4" />
+          <span>Classroom & Attendance Dashboard</span>
+        </button>
+        <button
+          onClick={() => setActiveSubTab("worksheets")}
+          className={`flex items-center gap-2 px-5 py-3 text-xs font-black transition-all rounded-t-2xl border-t-2 border-x-2 outline-none ${
+            activeSubTab === "worksheets"
+              ? "bg-white border-slate-200 border-b-transparent text-indigo-600 font-extrabold shadow-sm"
+              : "bg-slate-50/50 border-transparent text-slate-500 hover:text-slate-800"
+          }`}
+        >
+          <BookOpen className="w-4 h-4" />
+          <span>Printable Worksheet Generator</span>
+        </button>
+      </div>
+
+      {activeSubTab === "dashboard" && (
+        <div className="space-y-8">
+
+          {/* Teacher & Academy Metrics Highlights */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs">
           <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">My Assigned Roster</div>
           <div className="text-2xl font-black text-indigo-950 mt-1 font-display">{teacherStudents.length} Students</div>
@@ -1419,6 +1451,13 @@ export default function TeacherView({
         </div>
       </div>
 
+      {/* Reusable Digital Practice Concept Worksheet Manager for Level 1 */}
+      <ConceptWorksheetManager
+        currentTeacher={currentTeacher}
+        students={students}
+        onRefreshData={onRefreshData}
+      />
+
       {/* SECTION: Student practice & Accuracy Check (Requested) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Practice submissions (7 cols) */}
@@ -1936,6 +1975,15 @@ export default function TeacherView({
             </div>
           </div>
           <CrmView leads={leads} onAddLead={onAddLead} />
+        </div>
+      )}
+
+        </div>
+      )}
+
+      {activeSubTab === "worksheets" && (
+        <div className="space-y-4 animate-fade-in">
+          <PracticeGeneratorView />
         </div>
       )}
 

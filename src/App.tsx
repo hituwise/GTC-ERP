@@ -3,6 +3,7 @@ import { Center, Teacher, Student, CRMLead, AttendanceRecord, FeeRecord, Expense
 import SuperAdminView from "./components/SuperAdminView";
 import CenterAdminView from "./components/CenterAdminView";
 import TeacherView from "./components/TeacherView";
+import ManagerTeacherView from "./components/ManagerTeacherView";
 import CrmView from "./components/CrmView";
 import PracticeGeneratorView from "./components/PracticeGeneratorView";
 import DeveloperBlueprintView from "./components/DeveloperBlueprintView";
@@ -11,7 +12,7 @@ import { LayoutDashboard, Users, GraduationCap, PhoneCall, Sparkles, Database, S
 
 export default function App() {
   // Master SaaS User Roles Switcher
-  type Role = "Super Admin" | "Center Admin" | "Teacher" | "Marketing / Sales Staff" | "Abacus Content Engine" | "Developer Blueprint" | "Student";
+  type Role = "Super Admin" | "Center Admin" | "Teacher" | "Marketing / Sales Staff" | "Abacus Content Engine" | "Developer Blueprint" | "Student" | "Manager + Teacher";
 
   // Unified Centralized Authentication State
   interface LoggedInUser {
@@ -444,7 +445,7 @@ export default function App() {
         const foundTeacher = teachers.find(t => t.email.toLowerCase() === email);
         if (foundTeacher && (password === foundTeacher.password || password === "password123")) {
           matchedUser = {
-            role: "Teacher",
+            role: foundTeacher.role === "Manager + Teacher" ? "Manager + Teacher" : "Teacher",
             email: foundTeacher.email,
             name: foundTeacher.name,
             id: foundTeacher.id
@@ -474,6 +475,13 @@ export default function App() {
             name: "Senior Marketer",
             id: "M001"
           };
+        } else if (email === "manager@geniplus.com" && password === "password123") {
+          matchedUser = {
+            role: "Manager + Teacher",
+            email: "manager@geniplus.com",
+            name: "Ananya Sharma (Manager)",
+            id: "T_M_DEMO"
+          };
         } else if (email === "generator@geniplus.com" && password === "password123") {
           matchedUser = {
             role: "Abacus Content Engine",
@@ -502,6 +510,9 @@ export default function App() {
         } else if (matchedUser.role === "Center Admin") {
           localStorage.setItem("centeradmin_is_logged_in", "true");
         } else if (matchedUser.role === "Teacher") {
+          localStorage.setItem("teacher_is_logged_in", "true");
+          localStorage.setItem("teacher_logged_in_id", matchedUser.id || "T001");
+        } else if (matchedUser.role === "Manager + Teacher") {
           localStorage.setItem("teacher_is_logged_in", "true");
           localStorage.setItem("teacher_logged_in_id", matchedUser.id || "T001");
         } else if (matchedUser.role === "Student") {
@@ -742,7 +753,7 @@ export default function App() {
               <h1 className="text-lg font-black font-display leading-tight tracking-tight text-white flex items-center gap-2">
                 Geniplus <span className="text-[10px] px-2 py-0.5 bg-indigo-900 text-indigo-300 rounded-full font-mono uppercase font-semibold">ERP Console</span>
               </h1>
-              <p className="text-[10px] text-slate-400 font-mono">Multi-Tenant Cloud SaaS • Bangalore East Division</p>
+              <p className="text-[10px] text-slate-400 font-mono">discovering Abacus Genius!</p>
             </div>
           </div>
 
@@ -830,6 +841,25 @@ export default function App() {
               leads={leads}
               onAddLead={handleAddLead}
               onRefreshData={loadData}
+            />
+          )}
+
+          {currentRole === "Manager + Teacher" && (
+            <ManagerTeacherView
+              teachers={teachers}
+              students={students}
+              fees={fees}
+              expenses={expenses}
+              onAddTeacher={handleAddTeacher}
+              onAddStudent={handleAddStudent}
+              onAddExpense={handleAddExpense}
+              onPayFee={handlePayFee}
+              onAddFee={handleAddFee}
+              onDeleteFee={handleDeleteFee}
+              centers={centers}
+              leads={leads}
+              onAddLead={handleAddLead}
+              currentUser={currentUser}
             />
           )}
 

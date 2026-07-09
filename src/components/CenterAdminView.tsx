@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { Teacher, Student, FeeRecord, ExpenseRecord, FeeStructure, Center, CRMLead } from "../types";
-import { Users, Landmark, FileSpreadsheet, PlusCircle, CreditCard, ChevronRight, Calculator, PieChart, TrendingUp, TrendingDown, DollarSign, LogOut, RefreshCw, Settings, Sparkles, Receipt, Trash2, Send, MessageSquare, Image } from "lucide-react";
+import { Users, Landmark, FileSpreadsheet, PlusCircle, CreditCard, ChevronRight, Calculator, PieChart, TrendingUp, TrendingDown, DollarSign, LogOut, RefreshCw, Settings, Sparkles, Receipt, Trash2, Send, MessageSquare, Image, BookOpen } from "lucide-react";
 import CrmView from "./CrmView";
+import ConceptWorksheetManager from "./ConceptWorksheetManager";
 
 interface CenterAdminViewProps {
   teachers: Teacher[];
@@ -102,7 +103,7 @@ export default function CenterAdminView({
   };
 
   // Navigation sub-tabs inside Center Admin
-  const [subTab, setSubTab] = useState<"Teachers" | "Students" | "Fees" | "Expenses" | "PnL" | "FeeSetup">("Students");
+  const [subTab, setSubTab] = useState<"Teachers" | "Students" | "Fees" | "Expenses" | "PnL" | "FeeSetup" | "CRM" | "ConceptWorksheets">("Students");
 
   // Custom Fee Structure and Custom Invoicing states
   const [feeStructure, setFeeStructure] = useState<FeeStructure | null>(null);
@@ -266,6 +267,7 @@ export default function CenterAdminView({
   const [tRole, setTRole] = useState("Teacher");
 
   const [sName, setSName] = useState("");
+  const [sEmail, setSEmail] = useState("");
   const [sParent, setSParent] = useState("");
   const [sMobile, setSMobile] = useState("");
   const [sAge, setSAge] = useState(8);
@@ -321,6 +323,7 @@ export default function CenterAdminView({
       centerId: activeCenterId,
       teacherId: sTeacherId || "T001",
       studentName: sName,
+      email: sEmail.trim() || undefined,
       parentName: sParent,
       parentMobile: sMobile,
       age: sAge,
@@ -335,6 +338,7 @@ export default function CenterAdminView({
       centerId: activeCenterId,
       teacherId: sTeacherId || "T001",
       studentName: sName,
+      email: sEmail.trim() || undefined,
       parentName: sParent,
       parentMobile: sMobile,
       dateOfBirth: "2018-01-01",
@@ -346,7 +350,7 @@ export default function CenterAdminView({
       status: "Active"
     };
     setStudents([...students, newS]);
-    setSName(""); setSParent(""); setSMobile(""); setSSchool(""); setShowAddStudent(false);
+    setSName(""); setSEmail(""); setSParent(""); setSMobile(""); setSSchool(""); setShowAddStudent(false);
   };
 
   const handleCreateExpense = (e: React.FormEvent) => {
@@ -669,6 +673,7 @@ export default function CenterAdminView({
           {[
             { id: "Students", label: "Students Registry", icon: Users },
             { id: "Teachers", label: "Teachers & Staff", icon: Users },
+            { id: "ConceptWorksheets", label: "Concept Worksheets", icon: BookOpen },
             { id: "Fees", label: "Tuition Fees Ledger", icon: CreditCard },
             { id: "FeeSetup", label: "Fee Settings", icon: Settings },
             { id: "Expenses", label: "Operating Expenses", icon: Landmark },
@@ -746,7 +751,7 @@ export default function CenterAdminView({
                       <input type="text" value={sBatch} onChange={(e) => setSBatch(e.target.value)} className="w-full bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-medium" />
                     </div>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                       <label className="block text-[11px] font-semibold text-gray-600 mb-1">School Affiliation</label>
                       <input type="text" value={sSchool} onChange={(e) => setSSchool(e.target.value)} className="w-full bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-medium" />
@@ -758,6 +763,10 @@ export default function CenterAdminView({
                           <option key={t.id} value={t.id}>{t.name} ({t.role})</option>
                         ))}
                       </select>
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-gray-600 mb-1">Student Personal Email (Login ID)</label>
+                      <input type="email" placeholder="student@gmail.com (Optional)" value={sEmail} onChange={(e) => setSEmail(e.target.value)} className="w-full bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-medium" />
                     </div>
                   </div>
                   <div className="flex justify-end gap-2 pt-2">
@@ -863,6 +872,7 @@ export default function CenterAdminView({
                         <option value="Head Coach">Head Coach</option>
                         <option value="Marketing & Sales Staff">Marketing & Sales Staff</option>
                         <option value="Teacher & Marketing Representative">Teacher & Marketing Representative</option>
+                        <option value="Manager + Teacher">Manager + Teacher</option>
                       </select>
                     </div>
                   </div>
@@ -905,6 +915,7 @@ export default function CenterAdminView({
                             <option value="Head Coach">Head Coach</option>
                             <option value="Marketing & Sales Staff">Marketing & Sales Staff</option>
                             <option value="Teacher & Marketing Representative">Teacher & Marketing Representative</option>
+                            <option value="Manager + Teacher">Manager + Teacher</option>
                           </select>
                         </td>
                         <td className="p-3 font-mono text-gray-400">{t.joiningDate}</td>
@@ -1656,6 +1667,28 @@ export default function CenterAdminView({
                 </div>
 
               </div>
+            </div>
+          )}
+
+          {/* CONCEPT WORKSHEETS SUB-TAB */}
+          {subTab === "ConceptWorksheets" && (
+            <div className="space-y-4 animate-fade-in">
+              <ConceptWorksheetManager
+                currentTeacher={{
+                  id: activeCenterId,
+                  centerId: activeCenterId,
+                  name: activeCenterOwner,
+                  email: activeCenterEmail,
+                  mobile: "9999999999",
+                  joiningDate: "2026-01-01",
+                  role: "Center Admin",
+                  status: "Active"
+                }}
+                students={students}
+                onRefreshData={async () => {
+                  // No-op refresh
+                }}
+              />
             </div>
           )}
 

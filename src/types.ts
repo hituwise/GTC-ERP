@@ -18,6 +18,8 @@ export interface Center {
   upiId?: string;
   bankDetails?: string;
   qrCode?: string;
+  customPrice?: number;
+  addresses?: string[];
 }
 
 export interface Teacher {
@@ -146,6 +148,7 @@ export interface StudentPracticeAssignment {
   rows: number;
   type: "Addition" | "Subtraction" | "Multiplication" | "Division";
   starsEarned: number;
+  customSums?: { expression: string; answer: number; rows?: number[] }[];
 }
 
 export interface StudentPracticeSubmission {
@@ -170,5 +173,17 @@ export interface AcademyLeaderboardEntry {
   stars: number;
   level: number;
   completedCount: number;
+}
+
+export interface ConceptWorksheet {
+  id: string;
+  title: string;
+  level: number;
+  conceptName: string;
+  sums: { expression: string; answer: number; rows?: number[] }[];
+  createdByTeacherId?: string;
+  createdByTeacherName?: string;
+  centerId?: string;
+  createdAt?: string;
 }
 

@@ -32,7 +32,8 @@ const db: { [key: string]: any[] } = {
   exams: [],
   practiceAssignments: [],
   practiceSubmissions: [],
-  leaderboard: []
+  leaderboard: [],
+  customWorksheets: []
 };
 
 // Lazy initialize Gemini API client
@@ -102,6 +103,47 @@ function loadDb() {
         db.students.forEach(s => {
           if (!s.status) s.status = "Active";
         });
+      }
+
+      if (!db.customWorksheets || !Array.isArray(db.customWorksheets)) {
+        db.customWorksheets = [];
+      }
+
+      if (db.customWorksheets.length === 0) {
+        db.customWorksheets = [
+          {
+            id: "CW001",
+            title: "Level 1 - Week 1: Direct Numbers (+1 to +4)",
+            level: 1,
+            conceptName: "Direct Bead Movements",
+            sums: [
+              { expression: "1 + 2 + 1", answer: 4, rows: [1, 2, 1] },
+              { expression: "2 + 2 - 3", answer: 1, rows: [2, 2, -3] },
+              { expression: "3 - 1 + 2", answer: 4, rows: [3, -1, 2] },
+              { expression: "4 - 2 - 1", answer: 1, rows: [4, -2, -1] },
+              { expression: "1 + 1 + 2", answer: 4, rows: [1, 1, 2] }
+            ],
+            createdByTeacherId: "T001",
+            createdByTeacherName: "Sunitha Rao",
+            createdAt: "2026-07-08T00:00:00.000Z"
+          },
+          {
+            id: "CW002",
+            title: "Level 1 - Week 2: Direct 5 Bead (+5 & -5)",
+            level: 1,
+            conceptName: "5 Bead Activation",
+            sums: [
+              { expression: "5 + 2 + 1", answer: 8, rows: [5, 2, 1] },
+              { expression: "6 - 1 + 3", answer: 8, rows: [6, -1, 3] },
+              { expression: "7 - 5 + 2", answer: 4, rows: [7, -5, 2] },
+              { expression: "5 + 4 - 3", answer: 6, rows: [5, 4, -3] },
+              { expression: "8 - 3 + 4", answer: 9, rows: [8, -3, 4] }
+            ],
+            createdByTeacherId: "T001",
+            createdByTeacherName: "Sunitha Rao",
+            createdAt: "2026-07-08T00:00:00.000Z"
+          }
+        ];
       }
 
       console.log("Persistent database loaded and validated successfully from db.json");
@@ -317,7 +359,7 @@ app.post("/api/erp/practice-submit", (req, res) => {
 });
 
 app.post("/api/erp/practice-assign", (req, res) => {
-  const { studentId, studentIds, title, sumsCount, level, dueDate, teacherFocus, digits, rows, type } = req.body;
+  const { studentId, studentIds, title, sumsCount, level, dueDate, teacherFocus, digits, rows, type, customSums } = req.body;
   
   const sIds = Array.isArray(studentIds) ? studentIds : (studentId ? [studentId] : []);
   if (sIds.length === 0) {
@@ -331,7 +373,7 @@ app.post("/api/erp/practice-assign", (req, res) => {
       id: assignmentId,
       studentId: sId,
       title,
-      sumsCount: Number(sumsCount) || 30,
+      sumsCount: customSums && Array.isArray(customSums) ? customSums.length : (Number(sumsCount) || 30),
       completedCount: 0,
       level: Number(level) || 1,
       dueDate: dueDate || new Date().toISOString().split("T")[0],
@@ -339,13 +381,83 @@ app.post("/api/erp/practice-assign", (req, res) => {
       digits: Number(digits) || 1,
       rows: Number(rows) || 3,
       type: type || "Addition",
-      starsEarned: 0
+      starsEarned: 0,
+      customSums: customSums || null
     };
     db.practiceAssignments.push(newAssignment);
     created.push(newAssignment);
   });
 
   res.json({ success: true, assignments: created });
+});
+
+// Custom Concept-wise Worksheets endpoints
+app.get("/api/erp/custom-worksheets", (req, res) => {
+  res.json({ success: true, customWorksheets: db.customWorksheets || [] });
+});
+
+app.post("/api/erp/custom-worksheets", (req, res) => {
+  const { title, level, conceptName, sums, createdByTeacherId, createdByTeacherName, centerId } = req.body;
+  const id = `CW00${(db.customWorksheets || []).length + 1}`;
+  
+  const newWorksheet = {
+    id,
+    title: title || `Custom Worksheet Level ${level}`,
+    level: Number(level) || 1,
+    conceptName: conceptName || "General Concept",
+    sums: sums || [],
+    createdByTeacherId,
+    createdByTeacherName,
+    centerId,
+    createdAt: new Date().toISOString()
+  };
+  
+  if (!db.customWorksheets) {
+    db.customWorksheets = [];
+  }
+  db.customWorksheets.push(newWorksheet);
+  saveDb();
+  
+  res.json({ success: true, worksheet: newWorksheet });
+});
+
+app.put("/api/erp/custom-worksheets/:id", (req, res) => {
+  const { id } = req.params;
+  const { title, level, conceptName, sums } = req.body;
+  
+  if (!db.customWorksheets) {
+    db.customWorksheets = [];
+  }
+  const idx = db.customWorksheets.findIndex(w => w.id === id);
+  if (idx !== -1) {
+    db.customWorksheets[idx] = {
+      ...db.customWorksheets[idx],
+      title: title || db.customWorksheets[idx].title,
+      level: level !== undefined ? Number(level) : db.customWorksheets[idx].level,
+      conceptName: conceptName || db.customWorksheets[idx].conceptName,
+      sums: sums || db.customWorksheets[idx].sums
+    };
+    saveDb();
+    res.json({ success: true, worksheet: db.customWorksheets[idx] });
+  } else {
+    res.status(404).json({ success: false, error: "Worksheet not found" });
+  }
+});
+
+app.delete("/api/erp/custom-worksheets/:id", (req, res) => {
+  const { id } = req.params;
+  
+  if (!db.customWorksheets) {
+    db.customWorksheets = [];
+  }
+  const idx = db.customWorksheets.findIndex(w => w.id === id);
+  if (idx !== -1) {
+    const deleted = db.customWorksheets.splice(idx, 1);
+    saveDb();
+    res.json({ success: true, worksheet: deleted[0] });
+  } else {
+    res.status(404).json({ success: false, error: "Worksheet not found" });
+  }
 });
 
 
@@ -746,8 +858,9 @@ app.post("/api/erp/send-student-notification", (req, res) => {
 
 // 7. Super Admin updates Center Tenant details
 app.post("/api/erp/edit-center", (req, res) => {
-  const { id, name, ownerName, email, mobile, plan, status, password } = req.body;
-  const center = db.centers.find(c => c.id === id);
+  const { id, name, ownerName, email, mobile, plan, status, password, customPrice, addresses } = req.body;
+  const targetId = id || req.body.centerId;
+  const center = db.centers.find(c => c.id === targetId);
   if (!center) {
     return res.status(404).json({ success: false, error: "Center not found" });
   }
@@ -759,6 +872,8 @@ app.post("/api/erp/edit-center", (req, res) => {
   if (plan !== undefined) center.plan = plan;
   if (status !== undefined) center.status = status;
   if (password !== undefined) center.password = password;
+  if (customPrice !== undefined) center.customPrice = customPrice;
+  if (addresses !== undefined) center.addresses = addresses;
 
   res.json({ success: true, center });
 });
