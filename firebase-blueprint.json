@@ -1,0 +1,111 @@
+{
+  "entities": {
+    "Admin": {
+      "title": "Admin",
+      "description": "System Super Admin or central coordinator",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "email": { "type": "string" },
+        "name": { "type": "string" },
+        "password": { "type": "string" },
+        "photo": { "type": "string" }
+      },
+      "required": ["email", "name", "password"]
+    },
+    "Center": {
+      "title": "Center",
+      "description": "Franchised Abacus learning center or branch",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "centerId": { "type": "string" },
+        "centerName": { "type": "string" },
+        "city": { "type": "string" },
+        "ownerName": { "type": "string" },
+        "email": { "type": "string" },
+        "mobile": { "type": "string" },
+        "password": { "type": "string" },
+        "status": { "type": "string" },
+        "bankDetails": { "type": "string" },
+        "logo": { "type": "string" }
+      },
+      "required": ["centerId", "centerName", "ownerName", "email", "password"]
+    },
+    "Teacher": {
+      "title": "Teacher",
+      "description": "Instructor associated with a specific center",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "teacherId": { "type": "string" },
+        "centerId": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "mobile": { "type": "string" },
+        "password": { "type": "string" },
+        "status": { "type": "string" },
+        "photo": { "type": "string" }
+      },
+      "required": ["teacherId", "centerId", "name", "email", "password"]
+    },
+    "Student": {
+      "title": "Student",
+      "description": "Student registered under a center",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "studentId": { "type": "string" },
+        "centerId": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "mobile": { "type": "string" },
+        "password": { "type": "string" },
+        "level": { "type": "number" },
+        "status": { "type": "string" },
+        "photo": { "type": "string" }
+      },
+      "required": ["studentId", "centerId", "name", "email", "password"]
+    },
+    "CRMLead": {
+      "title": "CRMLead",
+      "description": "Inbound inquiry/lead for trial sessions",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "leadId": { "type": "string" },
+        "centerId": { "type": "string" },
+        "parentName": { "type": "string" },
+        "studentName": { "type": "string" },
+        "studentAge": { "type": "number" },
+        "email": { "type": "string" },
+        "mobile": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["parentName", "studentName", "mobile"]
+    }
+  },
+  "firestore": {
+    "admins": {
+      "schema": "Admin",
+      "description": "Collection of system administrators"
+    },
+    "centers": {
+      "schema": "Center",
+      "description": "Collection of learning centers/franchises"
+    },
+    "teachers": {
+      "schema": "Teacher",
+      "description": "Collection of course teachers"
+    },
+    "students": {
+      "schema": "Student",
+      "description": "Collection of active/inactive students"
+    },
+    "leads": {
+      "schema": "CRMLead",
+      "description": "Collection of inbound CRM inquiries"
+    }
+  }
+}

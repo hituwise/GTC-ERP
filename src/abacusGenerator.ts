@@ -162,7 +162,7 @@ export function generateAbacusSums(
 
       // Determine digit ranges depending on level
       let dVal = maxDigits;
-      if (level === 1) dVal = 1; // Strict Level 1 rule
+      if (level === 1 || level === 0) dVal = 1; // Strict Level 0 & 1 rule
       else if (level === 2) dVal = Math.min(2, maxDigits);
       else if (level === 3) dVal = Math.min(3, maxDigits);
 
@@ -200,8 +200,8 @@ export function generateAbacusSums(
           }
         }
 
-        // LEVEL 1 STRICT COMPLIANCE: Direct bead movements only
-        if (level === 1) {
+        // LEVEL 0 & 1 STRICT COMPLIANCE: Direct bead movements only
+        if (level === 1 || level === 0) {
           // Verify direct calculation column by column for Level 1
           // Since digits = 1 for level 1, runningTotal and nextTerm are single digits
           const signedNext = isSubtract ? -nextTerm : nextTerm;
@@ -283,10 +283,10 @@ export function getLocalizedInstructions(type: string, level: number, lang: "Eng
     if (isHindi) return `स्तर ${level} भाग: भाग के प्रश्नों को हल करें। अबेकस पर सही भागफल ज्ञात करें।`;
     return `લેવલ ${level} ભાગાકાર: ભાગાકારના દાખલાઓ હલ કરો. અબેકસ પર સાચો ભાગફળ શોધો.`;
   }
-  if (level === 1) {
-    if (isEng) return `Level 1 Direct Bead Practice: Identify the beads, and perform simple calculations using direct thumb (upwards) and index finger (downwards) movements. No formulas allowed.`;
-    if (isHindi) return `स्तर 1 डायरेक्ट बीड अभ्यास: मोतियों को पहचानें, और केवल अंगूठे और तर्जनी का उपयोग करके सीधे जोड़-घटाव करें। कोई सूत्र लागू नहीं है।`;
-    return `લેવલ 1 ડાયરેક્ટ બીડ અભ્યાસ: મોતી ઓળખો, અને અંગૂઠા અને આંગળીની મદદથી ડાયરેક્ટ સરવાળા-બાદબાકી કરો. કોઈ ફોર્મ્યુલા વાપરવી નહીં.`;
+  if (level === 1 || level === 0) {
+    if (isEng) return `Level ${level} Direct Bead Practice: Identify the beads, and perform simple calculations using direct thumb (upwards) and index finger (downwards) movements. No formulas allowed.`;
+    if (isHindi) return `स्तर ${level} डायरेक्ट बीड अभ्यास: मोतियों को पहचानें, और केवल अंगूठे और तर्जनी का उपयोग करके सीधे जोड़-घटाव करें। कोई सूत्र लागू नहीं है।`;
+    return `લેવલ ${level} ડાયરેક્ટ બીડ અભ્યાસ: મોતી ઓળખો, અને અંગૂઠા અને આંગળીની મદદથી ડાયરેક્ટ સરવાળા-બાદબાકી કરો. કોઈ ફોર્મ્યુલા વાપરવી નહીં.`;
   }
 
   if (isEng) return `Level ${level} Mixed Mental Math: Solve each sum row by row on your abacus or visualize the beads mentally for speed and accuracy.`;

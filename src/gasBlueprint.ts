@@ -281,7 +281,7 @@ function addStudentRow(ss, auth, payload) {
     payload.dateOfBirth,
     Number(payload.age) || 8,
     payload.school || "",
-    Number(payload.currentLevel) || 1,
+    payload.currentLevel !== undefined && payload.currentLevel !== null ? Number(payload.currentLevel) : 1,
     payload.batch || "Standard",
     new Date().toISOString().split("T")[0],
     "Active"

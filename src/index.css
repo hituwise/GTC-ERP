@@ -6,3 +6,120 @@
   --font-display: "Space Grotesk", sans-serif;
   --font-mono: "JetBrains Mono", monospace;
 }
+
+/* Comprehensive Print Optimization CSS Rules */
+@media print {
+  @page {
+    size: auto;
+    margin: 8mm;
+  }
+
+  html, body {
+    width: 100% !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* 1. Hide ALL elements in the DOM by default when printing */
+  body * {
+    visibility: hidden !important;
+  }
+
+  /* 2. Hide interactive web chrome, headers, footers, sidebars & action buttons */
+  .print\:hidden,
+  .print-hidden,
+  .no-print,
+  nav,
+  header,
+  footer,
+  aside {
+    display: none !important;
+  }
+
+  /* Buttons marked with print:hidden or inside non-printable controls are hidden */
+  button.print\:hidden,
+  button.print-hidden,
+  button.no-print,
+  .print\:hidden button {
+    display: none !important;
+  }
+
+  /* 1. Modal Overlay & Container Reset for Print */
+  .fixed.inset-0,
+  .fixed.inset-0 * {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  /* If a printable modal or element exists, show its contents cleanly */
+  #printable-certificate-container,
+  #printable-certificate-container *,
+  #printable-worksheet-modal,
+  #printable-worksheet-modal *,
+  #printable-receipt-modal,
+  #printable-receipt-modal *,
+  #practice-generator-view,
+  #practice-generator-view *,
+  .printable-modal,
+  .printable-modal *,
+  .printable-area,
+  .printable-area * {
+    visibility: visible !important;
+  }
+
+  /* When printing a dedicated modal, position it at top of printed page */
+  #printable-receipt-modal,
+  #printable-worksheet-modal,
+  .printable-modal {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: none !important;
+    overflow: visible !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #ffffff !important;
+    z-index: 999999 !important;
+  }
+
+  /* 2. Practice Generator View Print Formatting */
+  #practice-generator-view {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* 3. Certificate Special Landscape Formatting */
+  #printable-certificate-container {
+    position: fixed !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    margin: 0 !important;
+    padding: 10mm 15mm !important;
+    box-sizing: border-box !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
+    z-index: 99999 !important;
+    overflow: hidden !important;
+    background: #ffffff !important;
+  }
+}
+

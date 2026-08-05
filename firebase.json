@@ -1,0 +1,8 @@
+{
+  "firestore": [
+    {
+      "database": "ai-studio-geniplusacademye-ceb17340-91f3-489a-824a-661b8e48b31a",
+      "rules": "firestore.rules"
+    }
+  ]
+}

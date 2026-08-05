@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { generateAbacusSums, getLocalizedInstructions, AbacusSum } from "../abacusGenerator";
 import { Printer, Eye, EyeOff, Sparkles, AlertCircle, FileText, Download, CheckCircle, RefreshCw } from "lucide-react";
+import { printElementById } from "../lib/printUtils";
 
 export default function PracticeGeneratorView() {
   const [level, setLevel] = useState<number>(1);
@@ -11,7 +12,7 @@ export default function PracticeGeneratorView() {
   const [difficulty, setDifficulty] = useState<"Easy" | "Medium" | "Hard">("Medium");
   const [language, setLanguage] = useState<"English" | "Hindi" | "Gujarati">("English");
   
-  const [title, setTitle] = useState<string>("Geniplus Abacus Mental Math Worksheet");
+  const [title, setTitle] = useState<string>("Abacus Academy Mental Math Worksheet");
   const [studentName, setStudentName] = useState<string>("");
   const [dateStr, setDateStr] = useState<string>(new Date().toISOString().split("T")[0]);
 
@@ -44,13 +45,59 @@ export default function PracticeGeneratorView() {
     }
   };
 
+  const [saving, setSaving] = useState<boolean>(false);
+  const [savedSuccess, setSavedSuccess] = useState<boolean>(false);
+
   const handleGenerate = () => {
     const sums = generateAbacusSums(level, practiceType, digits, rows, numSums, difficulty);
     setGeneratedSums(sums);
+    setSavedSuccess(false);
+  };
+
+  const handleSaveToLibrary = async () => {
+    setSaving(true);
+    try {
+      const compiledSums = generatedSums.map(s => ({
+        id: s.id,
+        expression: s.expression,
+        rows: s.numbers,
+        correctAnswer: String(s.correctAnswer),
+        marks: 1,
+        type: "Abacus Sum"
+      }));
+
+      const payload = {
+        title: title || `Level ${level} Practice Sheet`,
+        level: Number(level),
+        conceptName: `${practiceType} (${difficulty})`,
+        sums: compiledSums,
+        createdByTeacherId: "T_GENERATED",
+        createdByTeacherName: "Auto Generator",
+        centerId: "GLOBAL"
+      };
+
+      const res = await fetch("/api/erp/custom-worksheets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSavedSuccess(true);
+        setTimeout(() => setSavedSuccess(false), 4000);
+      } else {
+        alert("Failed saving worksheet: " + (data.error || "Unknown error"));
+      }
+    } catch (err) {
+      console.error("Save worksheet error:", err);
+      alert("Error saving worksheet to server database.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handlePrint = () => {
-    window.print();
+    printElementById("printable-practice-worksheet-content", title);
   };
 
   const isMultiplicationAllowed = level >= 4;
@@ -60,6 +107,29 @@ export default function PracticeGeneratorView() {
 
   return (
     <div className="space-y-8 print:p-0" id="practice-generator-view">
+      <style>{`
+        @media print {
+          body * {
+            visibility: hidden !important;
+          }
+          #practice-generator-view, #practice-generator-view * {
+            visibility: visible !important;
+          }
+          #practice-generator-view {
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #ffffff !important;
+            z-index: 999999 !important;
+          }
+          .print\:hidden, .print-hidden, .no-print {
+            display: none !important;
+          }
+        }
+      `}</style>
       {/* Parameters Panel (Hidden on Print) */}
       <div className="bg-white rounded-3xl border-2 border-slate-100 p-6 shadow-sm print:hidden">
         <h2 className="text-xl font-black text-indigo-900 font-display flex items-center gap-2 mb-2">
@@ -80,7 +150,7 @@ export default function PracticeGeneratorView() {
               className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
               id="level-select"
             >
-              {[1, 2, 3, 4, 5, 6, 7, 8].map(l => (
+              {[0, 1, 2, 3, 4, 5, 6, 7, 8].map(l => (
                 <option key={l} value={l}>Level {l}</option>
               ))}
             </select>
@@ -214,7 +284,23 @@ export default function PracticeGeneratorView() {
         </div>
 
         {/* Buttons */}
-        <div className="flex gap-3 justify-end border-t border-gray-100 pt-4">
+        <div className="flex flex-wrap gap-3 justify-end border-t border-gray-100 pt-4 items-center">
+          {savedSuccess && (
+            <span className="text-xs font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl flex items-center gap-1.5 animate-fade-in">
+              <CheckCircle className="w-4 h-4 text-emerald-600" />
+              <span>Saved & Synchronized to Library!</span>
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={handleSaveToLibrary}
+            disabled={saving}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-sm transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+            id="save-to-library-btn"
+          >
+            <Download className="w-4 h-4" />
+            <span>{saving ? "Saving to Database..." : "Save Worksheet to Library"}</span>
+          </button>
           <button
             onClick={() => setShowAnswerKey(!showAnswerKey)}
             className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold border border-gray-200 text-gray-700 hover:bg-gray-50"
@@ -243,7 +329,7 @@ export default function PracticeGeneratorView() {
       </div>
 
       {/* Printable Sheet Frame */}
-      <div className="bg-white rounded-3xl border-2 border-slate-100 shadow-sm p-8 max-w-4xl mx-auto print:border-0 print:shadow-none print:p-0">
+      <div id="printable-practice-worksheet-content" className="bg-white rounded-3xl border-2 border-slate-100 shadow-sm p-8 max-w-4xl mx-auto print:border-0 print:shadow-none print:p-0">
         
         {/* Paper Header */}
         <div className="text-center border-b-2 border-slate-900 pb-5 mb-6">
@@ -329,7 +415,7 @@ export default function PracticeGeneratorView() {
 
         {/* Paper Footer */}
         <div className="text-center text-[10px] text-gray-400 font-mono border-t border-gray-100 pt-4 flex justify-between">
-          <span>Geniplus Academy ERP System Worksheet Generator (Levels 1 to 8)</span>
+          <span>Abacus Academy ERP System Worksheet Generator (Levels 1 to 8)</span>
           <span>Approved by Curriculum Design Committee</span>
         </div>
       </div>
