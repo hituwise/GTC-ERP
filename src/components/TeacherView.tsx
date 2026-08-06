@@ -10,6 +10,7 @@ import TeacherExamManager from "./TeacherExamManager";
 import CompetitionManager from "./CompetitionManager";
 import DigitalCertificateManager from "./DigitalCertificateManager";
 import VirtualAbacus from "./VirtualAbacus";
+import FlashAnzanPractice from "./FlashAnzanPractice";
 
 interface TeacherViewProps {
   teachers?: Teacher[];
@@ -20,7 +21,7 @@ interface TeacherViewProps {
   exams: ExamRecord[];
   onMarkAttendance: (records: any[], date?: string) => void;
   onPayFee: (feeId: string) => void;
-  onAddStudent: (payload: any) => Promise<void>;
+  onAddStudent: (payload: any) => Promise<any>;
   centers?: Center[];
   leads?: CRMLead[];
   onAddLead?: (lead: Partial<CRMLead>) => void;
@@ -1375,31 +1376,43 @@ export default function TeacherView({
     }
     setEnrollLoading(true);
     try {
-      await onAddStudent({
+      const computedBatch = enrollStudentType === "personal"
+        ? (enrollBatch || `${enrollPersonalDays} (${enrollPersonalTiming})`)
+        : (enrollBatch || (enrollBatchCode ? enrollBatchCode : "Scheduled Batch"));
+      const computedBatchCode = enrollStudentType === "personal"
+        ? "PERSONAL"
+        : enrollBatchCode;
+
+      const savedStudent = await onAddStudent({
         studentName: enrollName.trim(),
         email: enrollEmail.trim() || undefined,
         parentName: enrollParentName.trim(),
         parentMobile: enrollParentMobile.trim(),
         currentLevel: Number(enrollLevel),
         startingWeek: Number(enrollStartingWeek),
-        batch: enrollBatch,
-        batchCode: enrollBatchCode,
+        batch: computedBatch,
+        batchCode: computedBatchCode,
         age: Number(enrollAge),
-        teacherId: currentTeacher.id,
-        centerId: enrollCenterId || (selectedBranchId !== "ALL" ? selectedBranchId : (currentTeacher.centerId || "C001")),
+        teacherId: currentTeacher?.id || "T001",
+        centerId: enrollCenterId || (selectedBranchId !== "ALL" ? selectedBranchId : (currentTeacher?.centerId || "C001")),
         joiningDate: enrollJoiningDate,
         levelStartDate: enrollJoiningDate
       });
-      alert(`Success! Enrolled ${enrollName} in Level ${enrollLevel} (Week ${enrollStartingWeek}) (${enrollBatch}) under your roster.`);
-      setEnrollName("");
-      setEnrollEmail("");
-      setEnrollParentName("");
-      setEnrollParentMobile("");
-      setEnrollStartingWeek(1);
-      setEnrollBatchCode("");
-      setEnrollJoiningDate(new Date().toISOString().split("T")[0]);
+
+      if (savedStudent) {
+        alert(`Success! Enrolled ${enrollName} in Level ${enrollLevel} (Week ${enrollStartingWeek}) under your roster.`);
+        setEnrollName("");
+        setEnrollEmail("");
+        setEnrollParentName("");
+        setEnrollParentMobile("");
+        setEnrollStartingWeek(1);
+        setEnrollBatchCode("");
+        setEnrollJoiningDate(new Date().toISOString().split("T")[0]);
+      } else {
+        alert("Failed to enroll student. Please verify student details and try again.");
+      }
     } catch (err: any) {
-      alert("Failed enrolling student: " + err.message);
+      alert("Failed enrolling student: " + (err?.message || err));
     } finally {
       setEnrollLoading(false);
     }
@@ -1813,11 +1826,13 @@ export default function TeacherView({
       });
       const data = await res.json();
       if (data.success) {
-        alert(`📧 Success! Fee reminder email sent to ${studentName}'s registered email (${data.targetEmail}).`);
-      } else if (data.smtpMissing) {
-        alert(`⚠️ SMTP Settings Not Configured!\n\n${data.error}`);
+        if (data.smtpConfigured === false) {
+          alert(`📢 Success! Fee reminder posted to ${studentName}'s student portal & in-app notifications.\n\n(Note: Center SMTP is optional and unconfigured, so direct email dispatch was skipped)`);
+        } else {
+          alert(`📧 Success! Fee reminder email sent to ${studentName}'s registered email (${data.targetEmail}).`);
+        }
       } else {
-        alert("Failed to send fee reminder email: " + (data.error || "Unknown error"));
+        alert("Failed to send fee reminder: " + (data.error || "Unknown error"));
       }
     } catch (e) {
       console.error(e);
@@ -2145,6 +2160,17 @@ export default function TeacherView({
         >
           <Sparkles className="w-4 h-4 text-amber-500" />
           <span>🧮 Abacus Flashcard Gym</span>
+        </button>
+        <button
+          onClick={() => setActiveSubTab("flash_anzan")}
+          className={`flex items-center gap-2 px-5 py-3 text-xs font-black transition-all rounded-t-2xl border-t-2 border-x-2 outline-none shrink-0 ${
+            activeSubTab === "flash_anzan"
+              ? "bg-sky-500 border-sky-600 border-b-transparent text-slate-950 font-black shadow-sm"
+              : "bg-slate-50/50 border-transparent text-slate-500 hover:text-slate-800"
+          }`}
+        >
+          <Zap className="w-4 h-4 text-amber-400 fill-amber-400" />
+          <span>⚡ Flash Anzan Speed Gym</span>
         </button>
         <button
           onClick={() => setActiveSubTab("worksheets")}
@@ -4792,6 +4818,25 @@ export default function TeacherView({
               </p>
             </div>
             <AbacusBeadExerciseView studentName={`${currentTeacher.name} (Teacher Demo)`} />
+          </div>
+        </div>
+      )}
+
+      {activeSubTab === "flash_anzan" && (
+        <div className="space-y-4 animate-fade-in">
+          <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 text-white shadow-xl">
+            <div className="mb-4">
+              <span className="bg-amber-400 text-slate-950 text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full">
+                Smartboard & Projector Speed Tool
+              </span>
+              <h3 className="text-xl font-black font-display text-white mt-1">
+                ⚡ Flash Anzan Rapid Dictation & Speed Drills
+              </h3>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Run high-speed flashing numbers on screen for classroom dictation or online student training sessions.
+              </p>
+            </div>
+            <FlashAnzanPractice studentName={`${currentTeacher.name} (Instructor)`} />
           </div>
         </div>
       )}

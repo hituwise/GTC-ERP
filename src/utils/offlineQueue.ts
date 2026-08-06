@@ -19,7 +19,15 @@ export function getPendingQueue(): PendingRequest[] {
     const raw = localStorage.getItem(QUEUE_STORAGE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+    
+    // Auto-prune stale requests older than 12 hours
+    const now = Date.now();
+    const valid = parsed.filter(item => item && item.id && (now - (item.timestamp || 0) < 12 * 60 * 60 * 1000));
+    if (valid.length !== parsed.length) {
+      savePendingQueue(valid);
+    }
+    return valid;
   } catch (err) {
     console.error("[OFFLINE QUEUE] Error reading queue from storage:", err);
     return [];

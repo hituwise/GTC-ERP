@@ -18,11 +18,13 @@ import { getPendingCount, processPendingQueue } from "./utils/offlineQueue";
 
 function DatabaseHealthBadge({
   status,
+  dbMode,
   lastSyncTime,
   pendingCount,
   onManualSync
 }: {
   status: string;
+  dbMode?: string;
   lastSyncTime: string;
   pendingCount: number;
   onManualSync: () => void;
@@ -63,7 +65,7 @@ function DatabaseHealthBadge({
         type="button"
         onClick={() => setShowTooltip(!showTooltip)}
         className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-[11px] font-bold transition-all cursor-pointer active:scale-95 ${badgeStyle}`}
-        title="Live Firestore Database Health & Sync Status Indicator"
+        title="Live Database Health & Sync Status Indicator"
       >
         <span className={`w-2 h-2 rounded-full ${dotColor}`} />
         {icon}
@@ -82,7 +84,7 @@ function DatabaseHealthBadge({
             <div className="flex justify-between items-center border-b border-slate-800 pb-2">
               <span className="font-black text-slate-200 uppercase tracking-wider text-[10px] flex items-center gap-1.5">
                 <Database className="w-4 h-4 text-indigo-400" />
-                Firestore DB Health Status
+                Database Health Status
               </span>
               <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase border ${badgeStyle}`}>
                 {status}
@@ -92,7 +94,7 @@ function DatabaseHealthBadge({
             <div className="space-y-1.5 text-[11px]">
               <div className="flex justify-between">
                 <span className="text-slate-400">Primary Database:</span>
-                <span className="font-mono text-indigo-300 font-bold">Firestore Cloud DB</span>
+                <span className="font-mono text-indigo-300 font-bold">{dbMode || "Local Database Engine"}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">Last Successful Sync:</span>
@@ -263,6 +265,7 @@ export default function App() {
 
   // Database Health and Sync Indicator States
   const [dbHealthStatus, setDbHealthStatus] = useState<"Connected" | "Syncing..." | "Offline" | "Sync Error">("Connected");
+  const [dbModeStr, setDbModeStr] = useState<string>("Local Database Engine (Active)");
   const [lastSyncTime, setLastSyncTime] = useState<string>(new Date().toISOString());
   const [pendingSyncCount, setPendingSyncCount] = useState<number>(0);
 
@@ -286,6 +289,7 @@ export default function App() {
         const data = await res.json();
         if (data && data.success) {
           setDbHealthStatus(data.status);
+          if (data.mode) setDbModeStr(data.mode);
           if (data.lastSuccessfulSyncTime) setLastSyncTime(data.lastSuccessfulSyncTime);
           if (data.pendingSyncCount !== undefined) {
             setPendingSyncCount(data.pendingSyncCount + localPending);
@@ -880,21 +884,33 @@ export default function App() {
 
   const handleAddStudent = async (payload: Partial<Student>) => {
     try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (currentUser?.email) {
+        headers["x-logged-in-user-email"] = currentUser.email;
+      }
       const res = await fetch("/api/erp/add-student", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify(payload)
       });
       const data = await res.json();
       if (data.success) {
-        setStudents(prev => [...prev, data.student]);
+        setStudents(prev => {
+          const exists = prev.some(s => s.id === data.student.id);
+          if (exists) {
+            return prev.map(s => s.id === data.student.id ? data.student : s);
+          }
+          return [...prev, data.student];
+        });
         logActivity("Student Creation", `Created student: ${data.student.studentName} (ID: ${data.student.id})`, payload.centerId);
         return data.student;
+      } else {
+        throw new Error(data.error || "Failed to add student on server.");
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed adding student", e);
+      throw e;
     }
-    return null;
   };
 
   const handleEditStudent = async (payload: Partial<Student>) => {
@@ -1695,6 +1711,7 @@ export default function App() {
             {/* Database Real-time Health Indicator */}
             <DatabaseHealthBadge
               status={dbHealthStatus}
+              dbMode={dbModeStr}
               lastSyncTime={lastSyncTime}
               pendingCount={pendingSyncCount}
               onManualSync={async () => {

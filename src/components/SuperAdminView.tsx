@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { Center, Student, Teacher, CRMLead, FeeRecord, ExpenseRecord, AttendanceRecord, HomeworkRecord, TeacherTrainee, TeacherCourse, TeacherCourseModule, TeacherCourseLesson } from "../types";
-import { Building2, PlusCircle, ShieldCheck, Mail, Calendar, Sparkles, TrendingUp, DollarSign, Megaphone, CheckCircle, RefreshCw, Key, ShieldAlert, Edit, Trash2, ClipboardCopy, Check, Users, Award, Trophy, Star, MessageSquare, Send, CreditCard, Clock, Landmark, BookOpen, ClipboardList, Calculator, Package, Truck, Eye, Settings2, Image, Globe, GraduationCap, Play, Rocket, Lock, Unlock, CheckCircle2, AlertCircle, Video } from "lucide-react";
+import { Building2, PlusCircle, ShieldCheck, Mail, Calendar, Sparkles, TrendingUp, DollarSign, Megaphone, CheckCircle, RefreshCw, Key, ShieldAlert, Edit, Trash2, ClipboardCopy, Check, Users, Award, Trophy, Star, MessageSquare, Send, CreditCard, Clock, Landmark, BookOpen, ClipboardList, Calculator, Package, Truck, Eye, Settings2, Image, Globe, GraduationCap, Play, Rocket, Lock, Unlock, CheckCircle2, AlertCircle, Video, Activity } from "lucide-react";
 import { AccountingView } from "./AccountingView";
 import VirtualAbacus from "./VirtualAbacus";
 import PracticeGeneratorView from "./PracticeGeneratorView";
+import { SystemDiagnosticsView } from "./SystemDiagnosticsView";
 
 export interface SubscriptionPlan {
   id: string;
@@ -76,7 +77,7 @@ export default function SuperAdminView({
   const [showAddCenter, setShowAddCenter] = useState(false);
 
   // Active Sub-Tab State
-  const [activeTab, setActiveTab] = useState<"analytics" | "centers" | "teachers" | "plans" | "payments" | "logs" | "accounting" | "inventory" | "landing_cms" | "teacher_training">("analytics");
+  const [activeTab, setActiveTab] = useState<"analytics" | "centers" | "teachers" | "plans" | "payments" | "logs" | "accounting" | "inventory" | "landing_cms" | "teacher_training" | "diagnostics">("analytics");
 
   // Teacher Training & 1-Month Trial CRM States
   const [trainees, setTrainees] = useState<TeacherTrainee[]>(teacherTrainees);
@@ -1679,7 +1680,8 @@ export default function SuperAdminView({
           { id: "inventory" as const, label: "Material & Store", icon: Package },
           { id: "teacher_training" as const, label: "Teacher Training & LMS Academy", icon: GraduationCap },
           { id: "landing_cms" as const, label: "Landing Page CMS", icon: Globe },
-          { id: "logs" as const, label: "AOS Activity Logs", icon: ClipboardList }
+          { id: "logs" as const, label: "AOS Activity Logs", icon: ClipboardList },
+          { id: "diagnostics" as const, label: "System Diagnostics & Telemetry", icon: Activity }
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -4197,6 +4199,10 @@ export default function SuperAdminView({
             </div>
           </div>
         </div>
+      )}
+
+      {activeTab === "diagnostics" && (
+        <SystemDiagnosticsView />
       )}
 
       {activeTab === "inventory" && (

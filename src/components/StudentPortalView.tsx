@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Student, StudentPracticeAssignment, StudentPracticeSubmission, AcademyLeaderboardEntry, Center, CertificateRecord } from "../types";
 import { printElementById } from "../lib/printUtils";
-import { BookOpen, Sparkles, TrendingUp, RefreshCw, Trophy, Target, ArrowRight, Play, CheckCircle2, ChevronRight, RefreshCcw, HelpCircle, Image as ImageIcon, Flame, Clock, Star, Zap, Eye, Grid, Award } from "lucide-react";
+import { BookOpen, Sparkles, TrendingUp, RefreshCw, Trophy, Target, ArrowRight, Play, CheckCircle2, ChevronRight, RefreshCcw, HelpCircle, Image as ImageIcon, Flame, Clock, Star, Zap, Eye, Grid, Award, Search } from "lucide-react";
 import AbacusBeadExerciseView from "./AbacusBeadExerciseView";
 import DigitalCertificateViewer from "./DigitalCertificateViewer";
 import VirtualAbacus from "./VirtualAbacus";
+import FlashAnzanPractice from "./FlashAnzanPractice";
 
 interface StudentPortalViewProps {
   students: Student[];
@@ -91,6 +92,58 @@ export default function StudentPortalView({ students, onRefreshData, centers = [
   const [userRating, setUserRating] = useState<number>(0);
   const [isRatingSubmitting, setIsRatingSubmitting] = useState<boolean>(false);
   const [ratingFeedback, setRatingFeedback] = useState<string>("");
+
+  // Leaderboard Filter, Timeframe, Search & Pagination states
+  const [leaderboardScope, setLeaderboardScope] = useState<"all" | "mylevel" | "customlevel">("all");
+  const [leaderboardLevelSelect, setLeaderboardLevelSelect] = useState<string>("all");
+  const [leaderboardTimeframe, setLeaderboardTimeframe] = useState<"monthly" | "weekly" | "total">("monthly");
+  const [leaderboardSearch, setLeaderboardSearch] = useState<string>("");
+  const [leaderboardPageSize, setLeaderboardPageSize] = useState<number>(10);
+  const [leaderboardPage, setLeaderboardPage] = useState<number>(1);
+
+  const filteredLeaderboard = useMemo(() => {
+    let list = [...leaderboard];
+
+    // 1. Filter by Level Scope
+    if (leaderboardScope === "mylevel") {
+      list = list.filter(item => Number(item.level) === Number(currentStudent.currentLevel));
+    } else if (leaderboardScope === "customlevel") {
+      if (leaderboardLevelSelect !== "all") {
+        list = list.filter(item => Number(item.level) === Number(leaderboardLevelSelect));
+      }
+    } else if (leaderboardLevelSelect !== "all") {
+      list = list.filter(item => Number(item.level) === Number(leaderboardLevelSelect));
+    }
+
+    // 2. Filter by Search Query
+    if (leaderboardSearch.trim() !== "") {
+      const q = leaderboardSearch.toLowerCase().trim();
+      list = list.filter(item => item.studentName?.toLowerCase().includes(q) || item.studentId?.toLowerCase().includes(q));
+    }
+
+    // 3. Sort by Selected Timeframe Stars
+    list.sort((a, b) => {
+      let starsA = a.stars || 0;
+      let starsB = b.stars || 0;
+
+      if (leaderboardTimeframe === "monthly") {
+        starsA = (a as any).monthlyStars !== undefined ? (a as any).monthlyStars : a.stars;
+        starsB = (b as any).monthlyStars !== undefined ? (b as any).monthlyStars : b.stars;
+      } else if (leaderboardTimeframe === "weekly") {
+        starsA = (a as any).weeklyStars !== undefined ? (a as any).weeklyStars : Math.ceil((a.stars || 0) * 0.3);
+        starsB = (b as any).weeklyStars !== undefined ? (b as any).weeklyStars : Math.ceil((b.stars || 0) * 0.3);
+      }
+      return starsB - starsA;
+    });
+
+    return list;
+  }, [leaderboard, leaderboardScope, leaderboardLevelSelect, leaderboardSearch, leaderboardTimeframe, currentStudent.currentLevel]);
+
+  const totalLeaderboardItems = filteredLeaderboard.length;
+  const totalLeaderboardPages = Math.max(1, Math.ceil(totalLeaderboardItems / leaderboardPageSize));
+  const currentPageClamped = Math.min(leaderboardPage, totalLeaderboardPages);
+  const startIndex = (currentPageClamped - 1) * leaderboardPageSize;
+  const paginatedLeaderboard = filteredLeaderboard.slice(startIndex, startIndex + leaderboardPageSize);
 
   const calculateMonthlyStars = () => {
     const now = new Date();
@@ -222,6 +275,7 @@ export default function StudentPortalView({ students, onRefreshData, centers = [
   // Student-level Show/Hide preference for abacus
   const [studentHideAbacus, setStudentHideAbacus] = useState<boolean>(false);
   const [showAbacusGym, setShowAbacusGym] = useState<boolean>(false);
+  const [showFlashAnzan, setShowFlashAnzan] = useState<boolean>(false);
 
   // Synchronize studentHideAbacus when currentStudent changes
   useEffect(() => {
@@ -1059,6 +1113,24 @@ export default function StudentPortalView({ students, onRefreshData, centers = [
               <p className="text-xs text-indigo-200 max-w-xl">
                 Execute assigned mental arithmetic challenges, launch customized speed training runs, and climb your academy's leaderboard stars list!
               </p>
+
+              {(currentStudent?.status === "Pending Approval" || currentUser?.status === "Pending Approval") && (
+                <div className="bg-amber-500/20 border border-amber-400/80 p-3.5 rounded-2xl flex items-start gap-3 mt-3 shadow-lg text-amber-100 backdrop-blur-sm">
+                  <Clock className="w-5 h-5 text-amber-300 shrink-0 mt-0.5 animate-pulse" />
+                  <div className="space-y-1 text-xs text-left">
+                    <div className="font-extrabold text-amber-200 flex items-center gap-2">
+                      <span>Registration Status: Pending Approval</span>
+                      <span className="bg-amber-400 text-indigo-950 font-black text-[9px] px-2 py-0.5 rounded-full uppercase">Action Required</span>
+                    </div>
+                    <p className="text-amber-100/90 leading-relaxed text-[11px]">
+                      Your registration has been received! Your account is currently <strong>Pending Approval</strong>. Your Center Administrator or Manager will review your details and assign your course fee structure.
+                    </p>
+                    <p className="text-amber-200/80 text-[10px] italic">
+                      Once fees are assigned and approved, full student portal features will be unlocked and a confirmation email will be sent to <strong>{currentStudent?.email || currentUser?.email}</strong>.
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Account Info and Logout Button with Photo, Stars and Badges */}
@@ -2054,6 +2126,67 @@ export default function StudentPortalView({ students, onRefreshData, centers = [
 
           </div>
 
+          {/* FLASH ANZAN SPEED GYM SECTION */}
+          <div className="bg-gradient-to-br from-sky-950 via-slate-900 to-indigo-950 rounded-3xl border-2 border-sky-800/80 p-6 shadow-xl space-y-6 text-white relative overflow-hidden">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-sky-900/80 pb-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="bg-amber-400 text-slate-950 text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                    <Zap className="w-3 h-3 text-slate-950 fill-slate-950" /> Speed Drill
+                  </span>
+                  <span className="bg-sky-500/20 text-sky-300 border border-sky-500/30 text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full">
+                    Custom Duration & Digits
+                  </span>
+                </div>
+                <h3 className="text-xl font-black text-white font-display flex items-center gap-2 mt-1">
+                  ⚡ Flash Anzan Mental Speed Gym
+                </h3>
+                <p className="text-xs text-slate-300 mt-0.5">
+                  Configure numbers, digits (1–5), flash speed duration (0.1s–5.0s), and toggle Addition Only or Addition & Subtraction.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowFlashAnzan(!showFlashAnzan)}
+                className="bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-black px-5 py-3 rounded-xl shadow-lg transition-all active:scale-95 cursor-pointer flex items-center gap-2 self-start sm:self-auto border border-amber-300/50"
+              >
+                <Zap className="w-4 h-4 text-slate-950 fill-slate-950" />
+                <span>{showFlashAnzan ? "Minimize Flash Anzan" : "Launch Flash Anzan Practice ⚡"}</span>
+              </button>
+            </div>
+
+            {showFlashAnzan ? (
+              <FlashAnzanPractice
+                onBack={() => setShowFlashAnzan(false)}
+                studentName={currentStudent?.studentName}
+                studentId={currentStudent?.id}
+                onFinishExercise={(stats) => {
+                  loadPracticeData();
+                  if (onRefreshData) onRefreshData();
+                }}
+              />
+            ) : (
+              <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 text-center space-y-3">
+                <div className="w-12 h-12 bg-sky-500/20 text-sky-400 rounded-2xl flex items-center justify-center mx-auto text-2xl border border-sky-500/30">
+                  ⚡
+                </div>
+                <h4 className="text-sm font-black text-white">Rapid Flash Anzan Visualization Drills</h4>
+                <p className="text-xs text-slate-400 max-w-md mx-auto">
+                  Numbers flash on screen at high speed. Customize Digits (1-5), Duration (0.1s - 5.0s), Addition vs Subtraction, and answer mode to build master Soroban mental math speed.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowFlashAnzan(true)}
+                  className="bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-xs px-6 py-3 rounded-xl transition-all active:scale-95 cursor-pointer inline-flex items-center gap-2 shadow-lg shadow-sky-500/30"
+                >
+                  <Play className="w-4 h-4 fill-slate-950" />
+                  <span>Start Flash Anzan Practice ⚡</span>
+                </button>
+              </div>
+            )}
+          </div>
+
           {/* ABACUS FLASHCARD & BEAD EXERCISES SECTION */}
           <div className="bg-gradient-to-br from-indigo-950 via-slate-900 to-slate-950 rounded-3xl border-2 border-indigo-900 p-6 shadow-xl space-y-6 text-white relative overflow-hidden">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
@@ -2243,76 +2376,284 @@ export default function StudentPortalView({ students, onRefreshData, centers = [
             </div>
           </div>
 
-          {/* Academy Leaderboard (Matches second screenshot bottom table) */}
-          <div className="bg-white rounded-3xl border-2 border-slate-100 p-6 shadow-sm">
-            <div className="flex justify-between items-center mb-4">
+          {/* Academy Leaderboard */}
+          <div className="bg-white rounded-3xl border-2 border-slate-100 p-6 shadow-sm space-y-5">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <div>
                 <h3 className="text-base font-black text-indigo-900 font-display flex items-center gap-2">
                   <Trophy className="w-5 h-5 text-amber-500 fill-amber-500" />
                   Student Star Rating & Academy Leaderboard
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Top performing mental arithmetic students at Geniplus Bangalore East.
+                  Top performing mental arithmetic students. Filter by level, week, or month.
                 </p>
               </div>
-              <button
-                onClick={loadPracticeData}
-                className="p-2 text-slate-400 hover:text-indigo-600 rounded-xl"
-                title="Refresh Board"
-              >
-                <RefreshCcw className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-2 w-full md:w-auto">
+                <div className="relative flex-1 md:w-56">
+                  <input
+                    type="text"
+                    placeholder="Search student name..."
+                    value={leaderboardSearch}
+                    onChange={e => {
+                      setLeaderboardSearch(e.target.value);
+                      setLeaderboardPage(1);
+                    }}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-3 py-1.5 text-xs font-medium focus:bg-white focus:border-indigo-500 focus:outline-none"
+                  />
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+                </div>
+                <button
+                  onClick={loadPracticeData}
+                  className="p-2 text-slate-400 hover:text-indigo-600 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors shrink-0"
+                  title="Refresh Board"
+                >
+                  <RefreshCcw className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
-            <div className="overflow-x-auto rounded-2xl border border-slate-100">
+            {/* Filter Bar Controls */}
+            <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-3.5 flex flex-col lg:flex-row gap-3 items-stretch lg:items-center justify-between">
+              {/* Scope Filters */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[11px] font-bold text-slate-500 mr-1 hidden sm:inline">Scope:</span>
+                <button
+                  onClick={() => {
+                    setLeaderboardScope("all");
+                    setLeaderboardLevelSelect("all");
+                    setLeaderboardPage(1);
+                  }}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                    leaderboardScope === "all" && leaderboardLevelSelect === "all"
+                      ? "bg-indigo-600 text-white shadow-xs"
+                      : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
+                  }`}
+                >
+                  Total Academy
+                </button>
+                <button
+                  onClick={() => {
+                    setLeaderboardScope("mylevel");
+                    setLeaderboardLevelSelect(String(currentStudent.currentLevel || 1));
+                    setLeaderboardPage(1);
+                  }}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                    leaderboardScope === "mylevel"
+                      ? "bg-indigo-600 text-white shadow-xs"
+                      : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
+                  }`}
+                >
+                  My Level (L{currentStudent.currentLevel || 1})
+                </button>
+                <select
+                  value={leaderboardLevelSelect}
+                  onChange={e => {
+                    const val = e.target.value;
+                    setLeaderboardLevelSelect(val);
+                    if (val === "all") {
+                      setLeaderboardScope("all");
+                    } else if (val === String(currentStudent.currentLevel)) {
+                      setLeaderboardScope("mylevel");
+                    } else {
+                      setLeaderboardScope("customlevel");
+                    }
+                    setLeaderboardPage(1);
+                  }}
+                  className="bg-white border border-slate-200 text-slate-700 text-xs font-bold rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-indigo-500"
+                >
+                  <option value="all">Level-Wise Filter: All</option>
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(lvl => (
+                    <option key={lvl} value={String(lvl)}>
+                      Level {lvl} Only
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Time Period Filters */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[11px] font-bold text-slate-500 mr-1 hidden sm:inline">Stars:</span>
+                <button
+                  onClick={() => {
+                    setLeaderboardTimeframe("monthly");
+                    setLeaderboardPage(1);
+                  }}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                    leaderboardTimeframe === "monthly"
+                      ? "bg-amber-500 text-white shadow-xs"
+                      : "bg-white text-slate-600 border border-slate-200 hover:bg-amber-50"
+                  }`}
+                >
+                  Current Month (Default) ⭐
+                </button>
+                <button
+                  onClick={() => {
+                    setLeaderboardTimeframe("weekly");
+                    setLeaderboardPage(1);
+                  }}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                    leaderboardTimeframe === "weekly"
+                      ? "bg-amber-500 text-white shadow-xs"
+                      : "bg-white text-slate-600 border border-slate-200 hover:bg-amber-50"
+                  }`}
+                >
+                  Current Week ⭐
+                </button>
+                <button
+                  onClick={() => {
+                    setLeaderboardTimeframe("total");
+                    setLeaderboardPage(1);
+                  }}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                    leaderboardTimeframe === "total"
+                      ? "bg-amber-500 text-white shadow-xs"
+                      : "bg-white text-slate-600 border border-slate-200 hover:bg-amber-50"
+                  }`}
+                >
+                  Total Stars ⭐
+                </button>
+              </div>
+
+              {/* Items Per Page Selector */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-slate-500">Show:</span>
+                <select
+                  value={leaderboardPageSize}
+                  onChange={e => {
+                    setLeaderboardPageSize(Number(e.target.value));
+                    setLeaderboardPage(1);
+                  }}
+                  className="bg-white border border-slate-200 rounded-xl px-2 py-1 text-xs font-bold text-slate-700 focus:outline-none"
+                >
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={30}>30</option>
+                  <option value={50}>50</option>
+                </select>
+                <span className="text-xs text-slate-400 font-medium">names</span>
+              </div>
+            </div>
+
+            {/* Table */}
+            <div className="overflow-x-auto rounded-2xl border border-slate-200">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-100 font-black text-indigo-950">
-                    <th className="px-4 py-3">SR No.</th>
-                    <th className="px-4 py-3">Name</th>
-                    <th className="px-4 py-3">Rating ⭐</th>
-                    <th className="px-4 py-3 text-center">Assigned Level</th>
-                    <th className="px-4 py-3 text-right">Practice Drills Complete</th>
+                  <tr className="bg-slate-50 border-b border-slate-200 font-black text-indigo-950">
+                    <th className="px-4 py-3.5 w-16 text-slate-500">SR No.</th>
+                    <th className="px-4 py-3.5">Name</th>
+                    <th className="px-4 py-3.5 text-amber-600 font-bold">
+                      {leaderboardTimeframe === "monthly"
+                        ? "Current Month Stars ⭐"
+                        : leaderboardTimeframe === "weekly"
+                        ? "Current Week Stars ⭐"
+                        : "Total Stars ⭐"}
+                    </th>
+                    <th className="px-4 py-3.5 text-center">Assigned Level</th>
+                    <th className="px-4 py-3.5 text-right">Practice Drills Complete</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
-                  {leaderboard
-                    .sort((a, b) => b.stars - a.stars)
-                    .map((row, idx) => {
+                  {paginatedLeaderboard.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-8 text-center text-slate-400 italic">
+                        No students found matching selected leaderboard filters.
+                      </td>
+                    </tr>
+                  ) : (
+                    paginatedLeaderboard.map((row, idx) => {
+                      const globalIndex = startIndex + idx + 1;
                       const isSelf = row.studentId === currentStudent.id;
+                      const displayStars =
+                        leaderboardTimeframe === "monthly"
+                          ? (row as any).monthlyStars !== undefined
+                            ? (row as any).monthlyStars
+                            : row.stars
+                          : leaderboardTimeframe === "weekly"
+                          ? (row as any).weeklyStars !== undefined
+                            ? (row as any).weeklyStars
+                            : Math.ceil((row.stars || 0) * 0.3)
+                          : row.stars;
+
                       return (
                         <tr
-                          key={row.id}
-                          className={`hover:bg-slate-50 transition-colors ${
-                            isSelf ? "bg-amber-50/50 font-bold" : ""
+                          key={row.id || row.studentId}
+                          className={`hover:bg-slate-50/80 transition-colors ${
+                            isSelf ? "bg-amber-50/70 font-bold" : ""
                           }`}
                         >
-                          <td className="px-4 py-3 text-slate-400 font-mono">
-                            {idx + 1}
+                          <td className="px-4 py-3 text-slate-400 font-mono align-middle">
+                            #{globalIndex}
                           </td>
-                          <td className="px-4 py-3 flex items-center gap-2">
-                            <span className="font-bold text-indigo-950">{isSelf ? currentStudent.studentName : row.studentName}</span>
-                            {isSelf && (
-                              <span className="text-[9px] bg-amber-400 text-indigo-950 font-mono px-1.5 py-0.2 rounded font-extrabold uppercase">
-                                You
+                          <td className="px-4 py-3 align-middle">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-indigo-950">
+                                {isSelf ? currentStudent.studentName : row.studentName}
                               </span>
-                            )}
+                              {isSelf && (
+                                <span className="text-[9px] bg-amber-400 text-indigo-950 font-mono px-1.5 py-0.5 rounded font-extrabold uppercase">
+                                  You
+                                </span>
+                              )}
+                            </div>
                           </td>
-                          <td className="px-4 py-3 text-amber-500 font-extrabold font-mono flex items-center gap-1">
-                            {row.stars} <span className="text-[10px]">⭐</span>
+                          <td className="px-4 py-3 text-amber-600 font-extrabold font-mono align-middle">
+                            <div className="flex items-center gap-1">
+                              <span>{displayStars}</span>
+                              <span className="text-[11px]">⭐</span>
+                            </div>
                           </td>
-                          <td className="px-4 py-3 text-center font-mono text-indigo-600 font-bold">
-                            Level {row.level}
+                          <td className="px-4 py-3 text-center font-mono align-middle">
+                            <span className="bg-indigo-50 border border-indigo-100 px-2.5 py-1 rounded-full text-indigo-700 font-bold text-[11px]">
+                              Level {row.level}
+                            </span>
                           </td>
-                          <td className="px-4 py-3 text-right font-mono text-slate-500">
-                            {row.completedCount} exercises
+                          <td className="px-4 py-3 text-right font-mono align-middle">
+                            <span className="bg-slate-100 px-2.5 py-1 rounded-lg text-slate-700 font-bold text-[11px]">
+                              {row.completedCount || 0} exercises
+                            </span>
                           </td>
                         </tr>
                       );
-                    })}
+                    })
+                  )}
                 </tbody>
               </table>
             </div>
+
+            {/* Pagination Controls Footer */}
+            {totalLeaderboardItems > 0 && (
+              <div className="flex flex-col sm:flex-row justify-between items-center gap-3 pt-2">
+                <div className="text-xs text-slate-500 font-medium">
+                  Showing <span className="font-bold text-slate-800">{startIndex + 1}</span> to{" "}
+                  <span className="font-bold text-slate-800">
+                    {Math.min(startIndex + leaderboardPageSize, totalLeaderboardItems)}
+                  </span>{" "}
+                  of <span className="font-bold text-slate-800">{totalLeaderboardItems}</span> students
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => setLeaderboardPage(p => Math.max(1, p - 1))}
+                    disabled={currentPageClamped <= 1}
+                    className="px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Previous
+                  </button>
+
+                  <div className="flex items-center gap-1 px-2 text-xs font-bold text-indigo-900">
+                    Page {currentPageClamped} of {totalLeaderboardPages}
+                  </div>
+
+                  <button
+                    onClick={() => setLeaderboardPage(p => Math.min(totalLeaderboardPages, p + 1))}
+                    disabled={currentPageClamped >= totalLeaderboardPages}
+                    className="px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Parent Tuition Fee Desk & Digital Receipts */}

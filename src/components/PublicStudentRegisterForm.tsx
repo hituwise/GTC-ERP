@@ -91,16 +91,27 @@ export default function PublicStudentRegisterForm() {
     }
   }, [dateOfBirth]);
 
-  // Auto populate primary notification number based on selected parent
+  // Auto populate primary notification number based on selected parent, auto defaulting if not manually picked
   useEffect(() => {
-    if (primaryContact === "Father") {
-      setPrimaryNotificationNumber(fatherMobile);
-    } else if (primaryContact === "Mother") {
-      setPrimaryNotificationNumber(motherMobile);
-    } else {
-      setPrimaryNotificationNumber("");
+    let currentContact = primaryContact;
+    if (!currentContact) {
+      if (fatherMobileRaw && !motherMobileRaw) {
+        currentContact = "Father";
+        setPrimaryContact("Father");
+      } else if (motherMobileRaw && !fatherMobileRaw) {
+        currentContact = "Mother";
+        setPrimaryContact("Mother");
+      }
     }
-  }, [primaryContact, fatherMobile, motherMobile]);
+
+    if (currentContact === "Father") {
+      setPrimaryNotificationNumber(fatherMobile || (fatherMobileRaw ? `${fatherCountryCode === "Other" ? customFatherCountryCode : fatherCountryCode}${fatherMobileRaw}` : ""));
+    } else if (currentContact === "Mother") {
+      setPrimaryNotificationNumber(motherMobile || (motherMobileRaw ? `${motherCountryCode === "Other" ? customMotherCountryCode : motherCountryCode}${motherMobileRaw}` : ""));
+    } else {
+      setPrimaryNotificationNumber(fatherMobile || motherMobile || "");
+    }
+  }, [primaryContact, fatherMobile, motherMobile, fatherMobileRaw, motherMobileRaw, fatherCountryCode, customFatherCountryCode, motherCountryCode, customMotherCountryCode]);
 
   useEffect(() => {
     fetch(`/api/erp/public-details?centerId=${centerId}&teacherId=${teacherIdFromUrl}`)
@@ -170,26 +181,14 @@ export default function PublicStudentRegisterForm() {
       return;
     }
 
-    // Check at least one parent contact is provided
-    if (!fatherName && !fatherMobileRaw && !motherName && !motherMobileRaw) {
-      setErrorMsg("Please fill in contact details for at least one parent (Father or Mother).");
-      return;
-    }
-
-    if (fatherName && !fatherMobileRaw) {
-      setErrorMsg("Please enter Father's Mobile Number.");
-      return;
-    }
-
-    if (motherName && !motherMobileRaw) {
-      setErrorMsg("Please enter Mother's Mobile Number.");
-      return;
-    }
-
+    // Check at least one parent contact mobile number is provided
     if (!fatherMobileRaw && !motherMobileRaw) {
-      setErrorMsg("Please enter a valid mobile number for Father or Mother.");
+      setErrorMsg("Please enter a valid mobile number for at least one parent (Father or Mother).");
       return;
     }
+
+    const effectivePrimaryContact = primaryContact || (fatherMobileRaw ? "Father" : motherMobileRaw ? "Mother" : "Father");
+    const effectiveNotificationNumber = primaryNotificationNumber || (effectivePrimaryContact === "Father" ? fatherMobile : motherMobile) || fatherMobile || motherMobile;
 
     setIsSubmitting(true);
     setErrorMsg("");
@@ -203,8 +202,9 @@ export default function PublicStudentRegisterForm() {
       fatherMobile,
       motherName,
       motherMobile,
-      primaryContact,
-      primaryNotificationNumber,
+      primaryContact: effectivePrimaryContact,
+      primaryNotificationNumber: effectiveNotificationNumber,
+      parentMobile: fatherMobile || motherMobile,
       address,
       city,
       state,
@@ -223,16 +223,11 @@ export default function PublicStudentRegisterForm() {
     };
 
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000);
-
       const res = await fetch("/api/erp/public-register-student", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-        signal: controller.signal
+        body: JSON.stringify(payload)
       });
-      clearTimeout(timeoutId);
 
       const data = await res.json();
       if (data.success) {
@@ -261,26 +256,27 @@ export default function PublicStudentRegisterForm() {
           </div>
           
           <div className="space-y-2">
-            <h2 className="text-2xl font-black text-indigo-950 font-display">Registration Successful!</h2>
+            <h2 className="text-2xl font-black text-indigo-950 font-display">Registration Submitted!</h2>
             <p className="text-sm font-semibold text-slate-600">
               Welcome aboard, <span className="text-indigo-600 font-extrabold">{studentName}</span>!
             </p>
           </div>
 
-          <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 text-xs text-slate-550 leading-relaxed font-semibold space-y-2">
-            <p>
-              Your student account has been created and linked to instructor <span className="text-indigo-600 font-black">{branding.teacherName || "your teacher"}</span> at <span className="text-indigo-600 font-black">{branding.centerName}</span>.
-            </p>
-            <div className="border-t border-slate-200/60 my-2 pt-2 text-left space-y-1">
-              <p className="text-xs text-slate-600"><strong>Primary Notification Line Set:</strong></p>
-              <p className="text-[11px] text-slate-500">📞 {primaryNotificationNumber} ({primaryContact})</p>
-              <p className="text-[9px] text-emerald-600 font-bold flex items-center gap-1 mt-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                WhatsApp notifications & Alerts enabled automatically.
-              </p>
+          <div className="bg-emerald-50/80 border border-emerald-200 rounded-2xl p-4 text-xs text-slate-700 leading-relaxed font-semibold space-y-3 text-left">
+            <div className="flex items-center gap-2 text-emerald-800 font-extrabold text-sm">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span>Status: Active & Enrolled</span>
             </div>
-            <p className="text-[10px] text-slate-400">
-              Use your registered email <strong className="text-slate-700">{email}</strong> to sign in and start practicing!
+            <p>
+              Your enrollment details for <span className="text-indigo-600 font-bold">{branding.centerName}</span> have been saved and activated successfully!
+            </p>
+            <div className="border-t border-emerald-200/80 pt-2 space-y-1">
+              <p className="text-xs text-slate-800"><strong>Your Login Credentials:</strong></p>
+              <p className="text-[11px] text-slate-700">📧 Username/Email: <strong className="text-indigo-950">{email}</strong></p>
+              <p className="text-[11px] text-slate-700">🔑 Password: Your chosen password</p>
+            </div>
+            <p className="text-[11px] text-emerald-900 bg-emerald-100/70 p-2.5 rounded-xl border border-emerald-200">
+              🎉 You can log in right now to access your Student Portal, practice assignments, worksheets, and class schedule!
             </p>
           </div>
 
@@ -342,9 +338,23 @@ export default function PublicStudentRegisterForm() {
         </div>
 
         {errorMsg && (
-          <div className="bg-rose-50 border border-rose-200 text-rose-800 p-3.5 rounded-2xl text-xs font-semibold leading-relaxed">
-            <span className="block font-black text-rose-950">Registration Error</span>
-            {errorMsg}
+          <div className="bg-rose-50 border border-rose-200 text-rose-800 p-4 rounded-2xl text-xs font-semibold leading-relaxed space-y-2">
+            <div className="flex items-center gap-2 font-black text-rose-950 text-sm">
+              <span className="w-2 h-2 rounded-full bg-rose-600 animate-ping" />
+              Registration Warning
+            </div>
+            <p>{errorMsg}</p>
+            {errorMsg.toLowerCase().includes("already registered") && (
+              <div className="pt-2 border-t border-rose-200/80 flex items-center justify-between">
+                <span className="text-[11px] text-rose-700 font-bold">Already have an account?</span>
+                <a
+                  href="/"
+                  className="bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-[11px] px-3 py-1.5 rounded-lg shadow-sm transition-all"
+                >
+                  Log In Now &rarr;
+                </a>
+              </div>
+            )}
           </div>
         )}
 
@@ -812,7 +822,6 @@ export default function PublicStudentRegisterForm() {
                     <input
                       type="radio"
                       name="primaryContact"
-                      required
                       value="Father"
                       checked={primaryContact === "Father"}
                       onChange={() => setPrimaryContact("Father")}
@@ -824,7 +833,6 @@ export default function PublicStudentRegisterForm() {
                     <input
                       type="radio"
                       name="primaryContact"
-                      required
                       value="Mother"
                       checked={primaryContact === "Mother"}
                       onChange={() => setPrimaryContact("Mother")}

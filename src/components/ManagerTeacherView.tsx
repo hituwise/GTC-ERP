@@ -44,7 +44,7 @@ interface ManagerTeacherViewProps {
   exams?: any[];
   onMarkAttendance?: (attendance: any, date?: string) => void;
   onAddTeacher: (teacher: Partial<Teacher>) => void;
-  onAddStudent: (student: Partial<Student>) => void;
+  onAddStudent: (student: Partial<Student>) => Promise<any>;
   onEditStudent?: (student: Partial<Student>) => void;
   onDeleteStudent?: (studentId: string) => void;
   onAddExpense: (expense: Partial<ExpenseRecord>) => void;
@@ -302,7 +302,7 @@ export default function ManagerTeacherView({
     setExtraFeesInput(prev => prev.filter(item => item.id !== id));
   };
 
-  const handleCreateStudentSubmit = (e: React.FormEvent) => {
+  const handleCreateStudentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!sName || !sParent || !sMobile) {
       alert("Please fill in required student fields.");
@@ -318,22 +318,29 @@ export default function ManagerTeacherView({
       currentLevel: Number(sLevel),
       batch: (sBatch === "Custom" ? customBatchVal : sBatch).trim(),
       teacherId: sTeacherId || (teachers[0]?.id || ""),
-      email: sEmail.trim(),
+      email: sEmail.trim() || undefined,
       status: "Active",
       joiningDate: new Date().toISOString().split("T")[0]
     };
-    onAddStudent(newStudent);
-    setSName("");
-    setSParent("");
-    setSMobile("");
-    setSEmail("");
-    setSSchool("");
-    setSAge(8);
-    setSLevel(1);
-    setSBatch("");
-    setCustomBatchVal("");
-    setSTeacherId("");
-    setShowAddStudent(false);
+    try {
+      const result = await onAddStudent(newStudent);
+      if (result) {
+        alert(`Success! Student ${sName.trim()} registered successfully.`);
+        setSName("");
+        setSParent("");
+        setSMobile("");
+        setSEmail("");
+        setSSchool("");
+        setSAge(8);
+        setSLevel(1);
+        setSBatch("");
+        setCustomBatchVal("");
+        setSTeacherId("");
+        setShowAddStudent(false);
+      }
+    } catch (err: any) {
+      alert("Failed adding student: " + (err?.message || err));
+    }
   };
 
   const startEditStudent = (student: Student) => {
@@ -561,6 +568,29 @@ export default function ManagerTeacherView({
       }
     };
     reader.readAsDataURL(file);
+  };
+
+  // Approve pending student registration
+  const handleApproveStudent = async (student: Student) => {
+    if (!confirm(`Approve registration for ${student.studentName}? This will activate their account and send welcome login details via email.`)) {
+      return;
+    }
+    try {
+      const res = await fetch("/api/erp/update-student-status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ studentId: student.id, status: "Active" })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(`✅ Student ${student.studentName} has been approved and activated! Welcome email dispatched.`);
+        if (onRefreshData) await onRefreshData();
+      } else {
+        alert(`Failed to approve student: ${data.error}`);
+      }
+    } catch (err: any) {
+      alert(`Error approving student: ${err.message}`);
+    }
   };
 
   // Handles creating a student invoice
@@ -1153,9 +1183,11 @@ export default function ManagerTeacherView({
                               ))}
                             </select>
                           </td>
-                          <td className="p-3">
+                           <td className="p-3">
                             <span className={`px-2 py-0.5 rounded text-[10px] font-extrabold ${
-                              s.status === "Inactive"
+                              s.status === "Pending Approval"
+                                ? "bg-amber-100 text-amber-800 border border-amber-300 animate-pulse font-mono"
+                                : s.status === "Inactive"
                                 ? "bg-rose-50 text-rose-700 border border-rose-200"
                                 : "bg-emerald-50 text-emerald-700 border border-emerald-200"
                             }`}>
@@ -1163,6 +1195,16 @@ export default function ManagerTeacherView({
                             </span>
                           </td>
                           <td className="p-3 text-right space-x-1.5 whitespace-nowrap">
+                            {s.status === "Pending Approval" && (
+                              <button
+                                type="button"
+                                onClick={() => handleApproveStudent(s)}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[11px] px-2.5 py-1 rounded-lg transition-all active:scale-95 cursor-pointer shadow-sm animate-bounce"
+                                title="Approve Registration & Assign Fees"
+                              >
+                                Approve & Activate
+                              </button>
+                            )}
                             <button
                               type="button"
                               onClick={() => startEditStudent(s)}
